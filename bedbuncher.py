@@ -4,7 +4,6 @@ import pypiper, os, sys
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 from elasticsearch_dsl import Search
-from elasticsearch.serializer import JSONSerializer
 import json, gzip, shutil, yaml
 import tarfile
 
