@@ -24,7 +24,7 @@ parser.add_argument("-d", "--dbhost", help="this should be the database host add
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
-                                            required=["--protocol"])
+                                            required=["--field", "--value"])
 args = parser.parse_args()
 
 # SET OUTPUT FOLDER
