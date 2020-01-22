@@ -33,9 +33,8 @@ out_parent = args.output_parent
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher-pipeline", outfolder=out_parent, args=args)
-
-# Open connection to the elastic cluster;
-	try:
+    # Open connection to the elastic cluster;
+    try:
 		es = Elasticsearch([{"host":args.dbhost, "port":args.port}])
 		if es is not None:
 			print("Connected to elasticsearch cluster", es.info())
