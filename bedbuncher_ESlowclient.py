@@ -49,12 +49,12 @@ def main():
 				# need to iterate through the returned dictionary to find files paths
 				search_hits = search_result['hits']['hits']
 				# Alternative to tar using the CML: TAR files using the tarfile module
-	            		tar_archive = tarfile.open(args.bedset_name, mode=w:gz)
-	            		for files in search_hits:
-	            			# need to get access to bed json file to get the paths ['_source']
-	            			bed_source = files['_source'].get("sample_name") # this should point me to the raw bed file
+	            tar_archive = tarfile.open(args.bedset_name, mode=w:gz)
+	            for files in search_hits:
+	                # need to get access to bed json file to get the paths ['_source']
+	            	bed_source = files['_source'].get("sample_name") # this should point me to the raw bed file
 					tar_archive.add(bed_source)
-					tar_archive.close()
+				tar_archive.close()
 			else:
 				print("The provided query doesn't match the database record")
 	except Exception as ex:
