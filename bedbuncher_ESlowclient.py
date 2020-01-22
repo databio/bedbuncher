@@ -34,10 +34,6 @@ out_parent = args.output_parent
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher-pipeline", outfolder=out_parent, args=args)
 
-# ESTABLISH CONTACT WITH ELASTIC SEARCH AND PROVIDE THE FILTER CRITERIA TO GET THE SET OF BED FILES
-# bed files were already inserted into the database using es.index
-# Perform the search/retrieval using the low-level elasticsearch python client
-
 # Open connection to the elastic cluster;
 	try:
 		es = Elasticsearch([{"host":args.dbhost, "port":args.port}])
