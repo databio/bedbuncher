@@ -67,11 +67,11 @@ def main():
 	
 	# Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
 	bedstats_df = pd.DataFrame(columns=['BEDfile_id', 'GC_Content', 'Regions_number', 'Distance_from_feature', 
-										'Exon_frequency', 'Exon_percentage', 
-										'Intergenic_frequency', 'Intergenic_percentage',
-										'Intron_frequency', 'Intron_percentage',
-										'PromoterCore_frequency', 'PromoterCore_percentage'
-										'PromoterProx_frequency', ' PromoterProx_percentage'])
+						'Exon_frequency', 'Exon_percentage', 
+						'Intergenic_frequency', 'Intergenic_percentage',
+						'Intron_frequency', 'Intron_percentage',
+						'PromoterCore_frequency', 'PromoterCore_percentage'
+						'PromoterProx_frequency', ' PromoterProx_percentage'])
 	
 	# transform individual stats from dictionary into floats to perform calculations
 	def make_float(es_element):
@@ -88,9 +88,9 @@ def main():
 		feat_distance = source.get("mean_abs_tss_dist")
 		
 		bedstats_df = bedstats_df.append({'BEDfile_id': make_float(file_id), 
-										'GC_Content': make_float(gc_content), 
-										'Regions_number': make_float(regions_number),
-										'Distance_from_feature':make_float(feat_distance)},
+						'GC_Content': make_float(gc_content), 
+						'Regions_number': make_float(regions_number),
+						'Distance_from_feature':make_float(feat_distance)},
 										ignore_index=True)
 		
 		# iterate through the genomic partitions list to get feaures like exon and intron with stats (each list has several dictionaries)
@@ -101,20 +101,20 @@ def main():
 			partition_percent = item.get("Perc")
 			if partition_id == 'exon':
 				bedstats_df = bedstats_df.append({'Exon_frequency': partition_frequency, 
-												'Exon_percentage': partition_percent}, ignore_index=True)		
+								'Exon_percentage': partition_percent}, ignore_index=True)		
 			elif partition_id == 'intergenic': 
 				bedstats_df = bedstats_df.append({'Intergenic_frequency': partition_frequency, 
-												'Intergenic_percentage': partition_percent}, ignore_index=True)				
+								'Intergenic_percentage': partition_percent}, ignore_index=True)				
 			elif partition_id == 'intron':
 				bedstats_df = bedstats_df.append({'Intron_frequency': partition_frequency, 
-												'Intron_percentage': partition_percent}, ignore_index=True)
+								'Intron_percentage': partition_percent}, ignore_index=True)
 			elif partition_id == 'promoterCore':
 				bedstats_df = bedstats_df.append({'PromoterCore_frequency': partition_frequency, 
-												'PromoterCore_percentage': partition_percent}, ignore_index=True)
+								'PromoterCore_percentage': partition_percent}, ignore_index=True)
 			else:
 				partition_id == 'promoterProx':
 				bedstats_df = bedstats_df.append({'PromoterCore_frequency': partition_frequency, 
-												'PromoterCore_percentage': partition_percent}, ignore_index=True)
+								'PromoterCore_percentage': partition_percent}, ignore_index=True)
 
 	# Calculate average values for gc_content, num_regions and mean_abs_tss_dist 
 	avg_gc_content = bedstats_df["GC_Content"].mean()
