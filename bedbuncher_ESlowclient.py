@@ -36,24 +36,25 @@ def main():
     # Open connection to the elastic cluster;
     try:
 		es = Elasticsearch([{"host":args.dbhost, "port":args.port}])
-		if es is not None:
-			print("Connected to elasticsearch cluster", es.info())
-			search_result = es.search(index=args.index, body=args.query)
-			if not search_result['timed_out']: 
-				print("the query {} returned {} hits".format(args.query, search_result['hits']['total']['value']))				
-				# need to iterate through the returned dictionary to find files paths
-				search_hits = search_result['hits']['hits']
-				# Alternative to tar using the CML: TAR files using the tarfile module
-	            		tar_archive = tarfile.open(args.bedset_name, mode=w:gz)
-	           		for files in search_hits:
-	                		# need to get access to bed json file to get the paths ['_source']
-	            			bed_source = files['_id'] # this should point me to the raw bed file
-					tar_archive.add(bed_source)
-				tar_archive.close()
-			else:
-				print("The provided query doesn't match the database record")
 	except Exception as ex:
-		print("error while setting connection", ex) 
+		print("error while setting connection", ex)
+		
+	print("Connected to elasticsearch cluster", es.info())
+	search_result = es.search(index=args.index, body=args.query)
+	if 'hits' in search_result and 'total' in search_result['hits'] and int(search_result['hits']['total']['value']) > 0: 
+		print("the query {} returned {} hits".format(args.query, search_result['hits']['total']['value']))				
+		# need to iterate through the returned dictionary to find files paths
+		search_hits = search_result['hits']['hits']
+		# Alternative to tar using the CML: TAR files using the tarfile module
+        tar_archive = tarfile.open(args.bedset_name, mode=w:gz)
+       	for files in search_hits:
+            # need to get access to bed json file to get the paths ['_source']
+        	bed_path = files['_source'] # source the path from somewhere else
+			tar_archive.add(bed_path) # maybe create a list of strings and then add that list to tar_archive.add
+		tar_archive.close()
+	else:
+		raise elasticsearch.NotFoundError("The provided query doesn't match the database record")
+	
 
 	# Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
 	bedstats_df = pd.DataFrame(columns=['BEDfile_id', 'GC_Content', 'Regions_number', 'Distance_from_feature', 
@@ -71,11 +72,11 @@ def main():
 	for bed_file in search_hits:
 		source = bed_file['_source']
 		# get GenomicDIstributions data for each bed file as described in JSON file
-		file_id = source.get("id") # 'id': ['3']
+		file_id = source["id"] # 'id': ['3']
 		gc_content = source.get("gc_content")
 		regions_number = source.get("num_regions")
 		feat_distance = source.get("mean_abs_tss_dist")		
-		bedstats_df = bedstats_df.append({'BEDfile_id': make_float(file_id), 
+		bedstats_df = bedstats_df.append({'BEDfile_id': file_id, 
 						'GC_Content': make_float(gc_content), 
 						'Regions_number': make_float(regions_number),
 						'Distance_from_feature':make_float(feat_distance)},
@@ -85,23 +86,10 @@ def main():
 		for item in genomic_partitions:
 			partition_id = item.get("partition")
 			partition_frequency = item.get("Freq")
-			partition_percent = item.get("Perc")
-			if partition_id == 'exon':
-			    bedstats_df = bedstats_df.append({'Exon_frequency': partition_frequency, 
-								'Exon_percentage': partition_percent}, ignore_index=True)		
-			elif partition_id == 'intergenic': 
-				bedstats_df = bedstats_df.append({'Intergenic_frequency': partition_frequency, 
-								'Intergenic_percentage': partition_percent}, ignore_index=True)				
-			elif partition_id == 'intron':
-				bedstats_df = bedstats_df.append({'Intron_frequency': partition_frequency, 
-								'Intron_percentage': partition_percent}, ignore_index=True)
-			elif partition_id == 'promoterCore':
-				bedstats_df = bedstats_df.append({'PromoterCore_frequency': partition_frequency, 
-								'PromoterCore_percentage': partition_percent}, ignore_index=True)
-			else:
-				partition_id == 'promoterProx':
-				bedstats_df = bedstats_df.append({'PromoterCore_frequency': partition_frequency, 
-								'PromoterCore_percentage': partition_percent}, ignore_index=True)
+			partition_percent = item.get("Perc") 
+			bedstats_df = bedstats_df.append({ partition_id + '_frequency': partition_frequency, 
+								partition_id + '_percentage': partition_percent}, ignore_index=True)		
+			
 
 	# Calculate average values for gc_content, num_regions and mean_abs_tss_dist 
 	avg_gc_content = bedstats_df["GC_Content"].mean()
@@ -113,5 +101,17 @@ def main():
 	avg_interg_perc = bedstats_df["Intergenic_percentage"].mean()
 	avg_intron_freq = bedstats_df["Intron_frequency"].mean()
 	avg_intron_perc = bedstats_df["Intron_percentage"].mean()
+
+	bedstats_df.mean()
+
+
+# index name will be sourced from bbconf
+# from bbconf import BED_INDEX
+# create BEDSET_INDEX
+
+
+
+
+
 		
 
