@@ -13,17 +13,17 @@ import tarfile
 # 3. Reads all the metadata from each bed in the bedset and creates a matrix with all statistics produced by bedstat for individual files. We then average these statistics 
 # 4. Inserts the bedset statistics into the bedbase under an index for bedsets
 
-parser = ArgumentParser(
-    description="A pipeline to produce sets of bed files (bedsets) from bedbase")
+parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
 parser.add_argument("-i", "--index", help="name of ES database index where files are stored", type=str)
-parser.add_argument("-q", "--query", help="what variable to perform to search in", type=str)
+parser.add_argument("-q", "--query", help="what variable to perform to search in", type=dict)
 parser.add_argument("-d", "--dbhost", help="this should be the database host address we need to connect to", default="localhost" )
+parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
 parser.add_argument("-p", "--port", help="port number to set connection to elasticsearch", type=str)
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
-                                            required=["--index", "--query"])
+                                            required=["--index", "--query", "--bedset_name"])
 args = parser.parse_args()
 
 # SET OUTPUT FOLDER
@@ -47,7 +47,7 @@ def main():
 	            		tar_archive = tarfile.open(args.bedset_name, mode=w:gz)
 	           		for files in search_hits:
 	                		# need to get access to bed json file to get the paths ['_source']
-	            			bed_source = files['_source'].get("sample_name") # this should point me to the raw bed file
+	            			bed_source = files['_id'] # this should point me to the raw bed file
 					tar_archive.add(bed_source)
 				tar_archive.close()
 			else:
@@ -71,7 +71,7 @@ def main():
 	for bed_file in search_hits:
 		source = bed_file['_source']
 		# get GenomicDIstributions data for each bed file as described in JSON file
-		file_id = source.get("id")
+		file_id = source.get("id") # 'id': ['3']
 		gc_content = source.get("gc_content")
 		regions_number = source.get("num_regions")
 		feat_distance = source.get("mean_abs_tss_dist")		
@@ -107,5 +107,11 @@ def main():
 	avg_gc_content = bedstats_df["GC_Content"].mean()
 	avg_num_regions = bedstats_df["Regions_number"].mean()
 	avg_distance = bedstats_df["Distance_from_feature"].mean()
+	avg_exon_freq = bedstats_df["Exon_frequency"].mean()
+	avg_exon_perc = bedstats_df["Exon_percentage"].mean()
+	avg_interg_freq = bedstats_df["Intergenic_frequency"].mean()
+	avg_interg_perc = bedstats_df["Intergenic_percentage"].mean()
+	avg_intron_freq = bedstats_df["Intron_frequency"].mean()
+	avg_intron_perc = bedstats_df["Intron_percentage"].mean()
 		
 
