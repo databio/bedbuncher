@@ -20,8 +20,8 @@ parser.add_argument("-q", "--query", help="what variable to perform to search in
 #parser.add_argument("-d", "--dbhost", help="this should be the database host address we need to connect to", default="localhost" )
 parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
 parser.add_argument("-o", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
+parser.add_argument("-i", "--igd-folder", help="name of igd folder for indexes storage", default=str )
 #parser.add_argument("-f", "--tar-folder", help="name of output folder to store tar bedset", default=str)
-#parser.add_argument("-r", "--raw-folder", help="name of output folder for raw bed files", default=str)
 #parser.add_argument("-p", "--port", help="port number to set connection to elasticsearch", type=str)
 
 # add pypiper args to make pipeline looper compatible
@@ -59,7 +59,7 @@ def main():
 	# else:
 	# 	raise elasticsearch.NotFoundError("The provided query doesn't match the database record")
 	
-	# Establish Elasticsearch connection and chack status using bbconf
+	# Establish Elasticsearch connection and check status using bbconf
 	try:
 		bbconf.establish_elasticsearch_connection()
 		bbconf.assert_connection()
@@ -67,18 +67,18 @@ def main():
 		print("Error:", Connection_error)
 
 	# Use bbconf method to look for files in the es index
-	es = bbconf._search_index(index_name=BED_INDEX, query=args.query, just_data=True)
+	es = bbconf.search_bedfiles(query=args.query, just_data=True)
 
 	# Create a tar archive using the paths to the bed files provided by the bbconf search object
 	# find path through es[i]['path']
 	tar_archive_file = args.bedset_name + '.tar.gz' 
 	tar_archive = tarfile.open(tar_archive_file, mode=w:gz) #w:gz open for gzip cmpressed writing
    	for files in es:
-      	bedfile_path = files['bedfile_path'] # path should be sourced by bedstat?
+      	bedfile_path = files['bedfile_path'][0] 
 		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path)) 
 	tar_archive.close()
 
-	# check for prescence of the output folder and create it if necessary
+	# check for prescence of the output folder and create it if needed
 	output_folder = os.path.dirname(args.output_file)
 		if not os.path.exists(output_folder):
     		print("Output directory does not exist. Creating: {}".format(output_folder))
@@ -107,15 +107,15 @@ def main():
 		#source = bed_file['_source']
 		# get GenomicDIstributions data for each bed file as described in JSON file
 		file_id = bed_meta["id"] # 'id': ['3']
-		gc_content = bed_meta["gc_content"]
-		regions_number = bed_meta["num_regions"]
-		feat_distance = bed_meta["mean_abs_tss_dist"]		
+		gc_content = bed_meta["GC_content"]
+		regions_number = bed_meta["number_of_regions"]
+		feat_distance = bed_meta["mean_absolute_TSS_distance"]		
 		bedstats_df = bedstats_df.append({'BEDfile_id': file_id, 
 						'GC_Content': make_float(gc_content), 
 						'Regions_number': make_float(regions_number),
 						'Distance_from_feature':make_float(feat_distance)},
 						ignore_index=True)
-		# iterate through the genomic partitions list to get feaures like exon and intron with stats 
+		# iterate through the genomic partitions list to get features like exon and intron with stats 
 		genomic_partitions = bed_meta["genomic_partitions"]
 		for item in genomic_partitions:
 			partition_id = item["partition"]
@@ -138,9 +138,27 @@ def main():
 	tar_archive_path = os.path.join(args.output_folder, tar_archive_file)
 	bedstats_df_path = os.path.join(args.output_folder, bedstats_csv)
 
+	
+	# CREATE THE IGD DATABASE
+	# Need a .txt file with the paths to the queried bed files as input to igd create
+	txt_file = open("bedfile_paths.txt", "wr")
+	for files in es:
+		bedfile_path = files['bedfile_path'][0]
+		txt_file.write(bedfile_path)
+	txt_file.close()
+
+	# define CML template to create iGD database
+	igd_template = "igd create {source_folder_path}, {igd_folder_path}, {database_name}"
+	igd_folder_name = args.igd_folder + "_igd"
+	igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
+	os.makedirs(igd_folder_path)	
+	print("Directory {} succesfully created".format(igd_folder_name))
+
+	cmd = igd_template.format(source_folder_path="./bedfile_paths.txt", igd_folder_path=igd_folder_path, database_name=args.bedset_name + "_igd")
+
 	# create a nested dictionary with avgs and std values 
 	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': std_dictionary, "tar_archive": tar_archive_path,	
-						'bedset_df':bedstats_df_path, 'igd_path':}
+						'bedset_df':bedstats_df_path, 'igd_path': ''}
 	# create BEDSET_INDEX
 	try:
 		es.index(index=BEDSET_INDEX, body=bedset_summary_info) # index name will be sourced from bbconf
