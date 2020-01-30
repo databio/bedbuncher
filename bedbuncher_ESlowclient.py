@@ -1,26 +1,30 @@
 #!/usr/bin/env python
+"""
+bedset paths and info generating pipeline
+
+"""
+
+__author__ = ["Jose Verdezoto"]
+__email__ = "jev4xy@virginia.edu"
+__version__ = "0.0.1"
+
 from argparse import ArgumentParser
 import pypiper, os, sys
 import pandas as pd
 from elasticsearch import Elasticsearch
-from elasticsearch import helpers
+import bbconf
 from bbconf.const import *
 import shutil
 import tarfile
 
-# steps needed to create the pipeline
-# 1. Runs the filter to create a list of a subset of BEDfiles in the database. These will be the bed files included in the bedset. 
-# 2. tars the subset to make an archive for this bedset
-# 3. Reads all the metadata from each bed in the bedset and creates a matrix with all statistics produced by bedstat for individual files. We then average these statistics 
-# 4. Inserts the bedset statistics into the bedbase under an index for bedsets
-
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
 parser.add_argument("-q", "--query", help="what variable to perform to search in", type=dict)
-#parser.add_argument("-d", "--dbhost", help="this should be the database host address we need to connect to", default="localhost" )
+parser.add_argument("-c", "--bb-config", dest="bedbase_config", type=str, required=False, default=None,
+                    help="path to the bedbase configuration file")
 parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
 parser.add_argument("-o", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
-parser.add_argument("-i", "--igd-folder", help="name of igd folder for indexes storage", default=str )
+#parser.add_argument("-i", "--igd-folder", help="name of igd folder for indexes storage", default=str )
 #parser.add_argument("-f", "--tar-folder", help="name of output folder to store tar bedset", default=str)
 #parser.add_argument("-p", "--port", help="port number to set connection to elasticsearch", type=str)
 
@@ -33,6 +37,7 @@ args = parser.parse_args()
 # use output parent argument from looper
 out_parent = args.output_parent
 
+bbconf = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bb_config))
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher-pipeline", outfolder=out_parent, args=args)
@@ -102,10 +107,8 @@ def main():
 	# How to access elements in search object produced by bbconf.search_index : es[i]['path']
 
 	# iterate through the ['hits']['hits']['_source'] attribute of the bedset
-	# for bed_file in search_hits:
 	for bed_meta in es:
 		#source = bed_file['_source']
-		# get GenomicDIstributions data for each bed file as described in JSON file
 		file_id = bed_meta["id"] # 'id': ['3']
 		gc_content = bed_meta["GC_content"]
 		regions_number = bed_meta["number_of_regions"]
@@ -129,10 +132,10 @@ def main():
 	avg_stats = bedstats_df.mean(axis=0) 
 	stdv_stats = bedstats_df.std(axis=0)
 	avg_dictionary = dict(avg_stats)
-	std_dictionary = dict(stdv_stats) 
+	stdv_dictionary = dict(stdv_stats) 
 
 	# Save bedstats_df as csv file and put it into the user defined output_folder
-	bedstats_csv = bedstats_df.to_csv(index=false)
+	bedstats_csv = bedstats_df.to_csv(index=False)
 	shutil.move("./bedstats_csv", args.output_folder)
 
 	tar_archive_path = os.path.join(args.output_folder, tar_archive_file)
@@ -140,35 +143,40 @@ def main():
 
 	
 	# CREATE THE IGD DATABASE
-	# Need a .txt file with the paths to the queried bed files as input to igd create
+	# Create a .txt file with the paths to the queried bed files as input to igd the command
 	txt_file = open("bedfile_paths.txt", "wr")
 	for files in es:
 		bedfile_path = files['bedfile_path'][0]
 		txt_file.write(bedfile_path)
 	txt_file.close()
+	txt_file_path = os.path.abspath("bedfile_paths.txt")
+	pm.clean_add(txt_file_path)
 
 	# define CML template to create iGD database
-	igd_template = "igd create {source_folder_path}, {igd_folder_path}, {database_name}"
-	igd_folder_name = args.igd_folder + "_igd"
+	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name}"
+	igd_folder_name = args.bedset_name + "_igd"
 	igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
-	os.makedirs(igd_folder_path)	
-	print("Directory {} succesfully created".format(igd_folder_name))
+	os.makedirs(igd_folder_path)
+	if os.path.exists(igd_folder_path):
+		print("Directory {} succesfully created".format(igd_folder_name))
+	else:
+		raise Exception("igd folder could not be created")
 
-	cmd = igd_template.format(source_folder_path="./bedfile_paths.txt", igd_folder_path=igd_folder_path, database_name=args.bedset_name + "_igd")
-
-	# create a nested dictionary with avgs and std values 
-	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': std_dictionary, "tar_archive": tar_archive_path,	
-						'bedset_df':bedstats_df_path, 'igd_path': ''}
-	# create BEDSET_INDEX
+	cmd = igd_template.format(bed_source_path=txt_file_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
+	pm.run(cmd, target=igd_folder_path)
+	
+	# create a nested dictionary with avgs,stdv, and paths to tar archives, bedset csv file and igd database. 
+	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive": [tar_archive_path],	
+							'bedset_df': [bedstats_df_path], 'igd_path': [igd_folder_path]}
+	
+	# Insert bedset information into BEDSET_INDEX
 	try:
-		es.index(index=BEDSET_INDEX, body=bedset_summary_info) # index name will be sourced from bbconf
-		print("{} was succesfully created".format(BEDSET_INDEX))
+		bbconf.insert_bedsets_data(data=bedset_summary_info)
+		print("{} summary info was succesfully inserted into the BEDSET_INDEX".format(args.bedset_name))
 	except elasticsearch.ElasticsearchException as ind_ex:
-		print("Error: Bedset index could not be created", ind_ex)
+		print("Error: Bedset info could not be inserted into index", ind_ex)
 
-	# Pending: 
-	#	convert bedset_stats into a JSON file
-	#	create igd database for files in the bedset
+	pm.stop_pipeline()
 
 
 if __name__ == '__main__':
