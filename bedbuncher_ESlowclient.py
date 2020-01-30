@@ -5,6 +5,7 @@ import pandas as pd
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 from bbconf.const import *
+import shutil
 import tarfile
 
 # steps needed to create the pipeline
@@ -16,11 +17,12 @@ import tarfile
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
 parser.add_argument("-q", "--query", help="what variable to perform to search in", type=dict)
-parser.add_argument("-d", "--dbhost", help="this should be the database host address we need to connect to", default="localhost" )
+#parser.add_argument("-d", "--dbhost", help="this should be the database host address we need to connect to", default="localhost" )
 parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
+parser.add_argument("-o", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
 #parser.add_argument("-f", "--tar-folder", help="name of output folder to store tar bedset", default=str)
 #parser.add_argument("-r", "--raw-folder", help="name of output folder for raw bed files", default=str)
-parser.add_argument("-p", "--port", help="port number to set connection to elasticsearch", type=str)
+#parser.add_argument("-p", "--port", help="port number to set connection to elasticsearch", type=str)
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
@@ -35,28 +37,55 @@ out_parent = args.output_parent
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher-pipeline", outfolder=out_parent, args=args)
     # Open connection to the elastic cluster;
-    try:
-		es = Elasticsearch([{"host":args.dbhost, "port":args.port}])
-		print("Connected to elasticsearch cluster", es.info())
+ #    try:
+	# 	es = Elasticsearch([{"host":args.dbhost, "port":args.port}])
+	# 	print("Connected to elasticsearch cluster", es.info())
+	# except elasticsearch.ConnectionError as Connection_error:
+	# 	print("Error:", Connection_error)
+	# # Perform bedbase search 	
+	# search_result = es.search(index=BED_INDEX, body=args.query)
+	# if 'hits' in search_result and 'total' in search_result['hits'] and int(search_result['hits']['total']['value']) > 0: 
+	# 	print("the query {} returned {} hits".format(args.query, search_result['hits']['total']['value']))				
+	# 	# need to iterate through the returned dictionary to find files paths
+	# 	search_hits = search_result['hits']['hits']
+		
+	# 	# Alternative to tar using the CML: TAR files using the tarfile module
+ #        tar_archive = tarfile.open(args.bedset_name + '.tar.gz', mode=w:gz) #w:gz open for gzip cmpressed writing
+ #       	for files in search_hits:
+ #            # need to get access to bed json file to get the paths ['_source']
+ #        	bedfile_path = files['_source']['_id'] # path should be sourced by bedstat?
+	# 		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path)) 
+	# 	tar_archive.close()
+	# else:
+	# 	raise elasticsearch.NotFoundError("The provided query doesn't match the database record")
+	
+	# Establish Elasticsearch connection and chack status using bbconf
+	try:
+		bbconf.establish_elasticsearch_connection()
+		bbconf.assert_connection()
 	except elasticsearch.ConnectionError as Connection_error:
 		print("Error:", Connection_error)
-	# Perform bedbase search 	
-	search_result = es.search(index=BED_INDEX, body=args.query)
-	if 'hits' in search_result and 'total' in search_result['hits'] and int(search_result['hits']['total']['value']) > 0: 
-		print("the query {} returned {} hits".format(args.query, search_result['hits']['total']['value']))				
-		# need to iterate through the returned dictionary to find files paths
-		search_hits = search_result['hits']['hits']
-		
-		# Alternative to tar using the CML: TAR files using the tarfile module
-        tar_archive = tarfile.open(args.bedset_name + '.tar.gz', mode=w:gz) #w:gz open for gzip cmpressed writing
-       	for files in search_hits:
-            # need to get access to bed json file to get the paths ['_source']
-        	bedfile_path = files['_source']['_id'] # path should be sourced by bedstat?
-			tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path)) 
-		tar_archive.close()
-	else:
-		raise elasticsearch.NotFoundError("The provided query doesn't match the database record")
-	
+
+	# Use bbconf method to look for files in the es index
+	es = bbconf._search_index(index_name=BED_INDEX, query=args.query, just_data=True)
+
+	# Create a tar archive using the paths to the bed files provided by the bbconf search object
+	# find path through es[i]['path']
+	tar_archive_file = args.bedset_name + '.tar.gz' 
+	tar_archive = tarfile.open(tar_archive_file, mode=w:gz) #w:gz open for gzip cmpressed writing
+   	for files in es:
+      	bedfile_path = files['bedfile_path'] # path should be sourced by bedstat?
+		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path)) 
+	tar_archive.close()
+
+	# check for prescence of the output folder and create it if necessary
+	output_folder = os.path.dirname(args.output_file)
+		if not os.path.exists(output_folder):
+    		print("Output directory does not exist. Creating: {}".format(output_folder))
+    		os.makedirs(output_folder)
+
+    #move tar archive to output folder, newly created tar archive should be in pwd
+    shutil.move("./tar_archive_file", args.output_folder)
 
 	# Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
 	bedstats_df = pd.DataFrame(columns=['BEDfile_id', 'GC_Content', 'Regions_number', 'Distance_from_feature', 
@@ -70,27 +99,30 @@ def main():
 	def make_float(es_element):
 		float(es_element[0])
 
+	# How to access elements in search object produced by bbconf.search_index : es[i]['path']
+
 	# iterate through the ['hits']['hits']['_source'] attribute of the bedset
-	for bed_file in search_hits:
-		source = bed_file['_source']
+	# for bed_file in search_hits:
+	for bed_meta in es:
+		#source = bed_file['_source']
 		# get GenomicDIstributions data for each bed file as described in JSON file
-		file_id = source["id"] # 'id': ['3']
-		gc_content = source["gc_content"]
-		regions_number = source["num_regions"]
-		feat_distance = source["mean_abs_tss_dist"]		
+		file_id = bed_meta["id"] # 'id': ['3']
+		gc_content = bed_meta["gc_content"]
+		regions_number = bed_meta["num_regions"]
+		feat_distance = bed_meta["mean_abs_tss_dist"]		
 		bedstats_df = bedstats_df.append({'BEDfile_id': file_id, 
 						'GC_Content': make_float(gc_content), 
 						'Regions_number': make_float(regions_number),
 						'Distance_from_feature':make_float(feat_distance)},
-										ignore_index=True)
-		# iterate through the genomic partitions list to get feaures like exon and intron with stats (each list has several dictionaries)
-		genomic_partitions = source["genomic_partitions"]
+						ignore_index=True)
+		# iterate through the genomic partitions list to get feaures like exon and intron with stats 
+		genomic_partitions = bed_meta["genomic_partitions"]
 		for item in genomic_partitions:
 			partition_id = item["partition"]
 			partition_frequency = item["Freq"]
 			partition_percent = item["Perc"] 
 			bedstats_df = bedstats_df.append({partition_id + '_frequency': partition_frequency, 
-								partition_id + '_percentage': partition_percent}, ignore_index=True)		
+							partition_id + '_percentage': partition_percent}, ignore_index=True)		
 			
 	# Calculate mean and stdv statistics
 	# axis = 0 calculates the column wise mean of the dataframe
@@ -99,11 +131,19 @@ def main():
 	avg_dictionary = dict(avg_stats)
 	std_dictionary = dict(stdv_stats) 
 
+	# Save bedstats_df as csv file and put it into the user defined output_folder
+	bedstats_csv = bedstats_df.to_csv(index=false)
+	shutil.move("./bedstats_csv", args.output_folder)
+
+	tar_archive_path = os.path.join(args.output_folder, tar_archive_file)
+	bedstats_df_path = os.path.join(args.output_folder, bedstats_csv)
+
 	# create a nested dictionary with avgs and std values 
-	bedset_stats = {'bedset_means': avg_dictionary, 'bedset_stdv': std_dictionary}
+	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': std_dictionary, "tar_archive": tar_archive_path,	
+						'bedset_df':bedstats_df_path, 'igd_path':}
 	# create BEDSET_INDEX
 	try:
-		es.index(index=BEDSET_INDEX, body=bedset_stats) # index name will be sourced from bbconf
+		es.index(index=BEDSET_INDEX, body=bedset_summary_info) # index name will be sourced from bbconf
 		print("{} was succesfully created".format(BEDSET_INDEX))
 	except elasticsearch.ElasticsearchException as ind_ex:
 		print("Error: Bedset index could not be created", ind_ex)
