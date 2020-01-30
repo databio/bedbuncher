@@ -1,0 +1,25 @@
+protocol_mapping:
+  bedbuncher: bedbuncher
+
+pipelines:
+  bedbuncher:
+    name: bedbuncher
+    path: bedbuncher_ESlowclient.py
+    looper_args: True
+    arguments:
+      "--query": query
+      "--bedset-name": bedset_name
+      "-output_folder": output_folder_path
+    
+    database:
+      host: localhost
+      bedset_index: bedset_index
+
+    server:
+      host: 0.0.0.0
+      port: 8000
+
+
+
+
+
