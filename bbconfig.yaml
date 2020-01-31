@@ -1,0 +1,11 @@
+path:
+  bedstat_output: $HOME/results_pipeline
+
+database:
+  host: localhost
+  bed_index: bed_index
+  bedset_index: bedset_index
+
+server:
+  host: 0.0.0.0
+  port: 8000
