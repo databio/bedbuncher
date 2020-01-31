@@ -1,0 +1,13 @@
+metadata:
+  sample_table: bedset_query.csv
+  output_dir: . 
+  pipeline_interfaces: ../pipeline_interface.yaml 
+
+derived_attributes: [JSONquery_path, output_folder_path, bbconfig_path]
+data_sources:
+  source1: tests/{JSONquery_name}.json
+  source2: tests/output_BEDset/
+  source3: ./{bbconfig_name}.yaml
+ 
+constant_attributes:
+  protocol: "bedbuncher"
