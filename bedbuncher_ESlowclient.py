@@ -19,13 +19,11 @@ import tarfile
 
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
-parser.add_argument("-q", "--query", help="what variable to perform to search in", type=dict)
+parser.add_argument("-q", "--JSONquery-path", help="what variable to perform to search in", type=str) # path to JSON with query
 parser.add_argument("-c", "--bb-config", dest="bedbase_config", type=str, required=False, default=None,
                     help="path to the bedbase configuration file")
 parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
 parser.add_argument("-o", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
-#parser.add_argument("-i", "--igd-folder", help="name of igd folder for indexes storage", default=str )
-#parser.add_argument("-f", "--tar-folder", help="name of output folder to store tar bedset", default=str)
 #parser.add_argument("-p", "--port", help="port number to set connection to elasticsearch", type=str)
 
 # add pypiper args to make pipeline looper compatible
@@ -37,12 +35,12 @@ args = parser.parse_args()
 # use output parent argument from looper
 out_parent = args.output_parent
 
-bbconf = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bb_config))
+bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bb_config))
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher-pipeline", outfolder=out_parent, args=args)
     # Open connection to the elastic cluster;
- #    try:
+ 	#try:
 	# 	es = Elasticsearch([{"host":args.dbhost, "port":args.port}])
 	# 	print("Connected to elasticsearch cluster", es.info())
 	# except elasticsearch.ConnectionError as Connection_error:
@@ -53,35 +51,12 @@ def main():
 	# 	print("the query {} returned {} hits".format(args.query, search_result['hits']['total']['value']))				
 	# 	# need to iterate through the returned dictionary to find files paths
 	# 	search_hits = search_result['hits']['hits']
-		
-	# 	# Alternative to tar using the CML: TAR files using the tarfile module
- #        tar_archive = tarfile.open(args.bedset_name + '.tar.gz', mode=w:gz) #w:gz open for gzip cmpressed writing
- #       	for files in search_hits:
- #            # need to get access to bed json file to get the paths ['_source']
- #        	bedfile_path = files['_source']['_id'] # path should be sourced by bedstat?
-	# 		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path)) 
-	# 	tar_archive.close()
-	# else:
-	# 	raise elasticsearch.NotFoundError("The provided query doesn't match the database record")
 	
 	# Establish Elasticsearch connection and check status using bbconf
-	try:
-		bbconf.establish_elasticsearch_connection()
-		bbconf.assert_connection()
-	except elasticsearch.ConnectionError as Connection_error:
-		print("Error:", Connection_error)
+	bbc.establish_elasticsearch_connection()
 
 	# Use bbconf method to look for files in the es index
-	es = bbconf.search_bedfiles(query=args.query, just_data=True)
-
-	# Create a tar archive using the paths to the bed files provided by the bbconf search object
-	# find path through es[i]['path']
-	tar_archive_file = args.bedset_name + '.tar.gz' 
-	tar_archive = tarfile.open(tar_archive_file, mode=w:gz) #w:gz open for gzip cmpressed writing
-   	for files in es:
-      	bedfile_path = files['bedfile_path'][0] 
-		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path)) 
-	tar_archive.close()
+	es = bbc.search_bedfiles(query=args.query)
 
 	# check for prescence of the output folder and create it if needed
 	output_folder = os.path.dirname(args.output_file)
@@ -89,8 +64,14 @@ def main():
     		print("Output directory does not exist. Creating: {}".format(output_folder))
     		os.makedirs(output_folder)
 
-    #move tar archive to output folder, newly created tar archive should be in pwd
-    shutil.move("./tar_archive_file", args.output_folder)
+	# Create a tar archive using the paths to the bed files provided by the bbconf search object
+	# find path through es[i]['path']
+	tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar.gz') #should provide a path instead of just the name
+	tar_archive = tarfile.open(tar_archive_file, mode=w:gz) #w:gz open for gzip cmpressed writing
+   	for files in es:
+      	bedfile_path = files[BEDFILE_PATH_KEY][0] 
+		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path)) # see if setting arc name is default
+	tar_archive.close()
 
 	# Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
 	bedstats_df = pd.DataFrame(columns=['BEDfile_id', 'GC_Content', 'Regions_number', 'Distance_from_feature', 
@@ -108,7 +89,6 @@ def main():
 
 	# iterate through the ['hits']['hits']['_source'] attribute of the bedset
 	for bed_meta in es:
-		#source = bed_file['_source']
 		file_id = bed_meta["id"] # 'id': ['3']
 		gc_content = bed_meta["GC_content"]
 		regions_number = bed_meta["number_of_regions"]
@@ -128,53 +108,44 @@ def main():
 							partition_id + '_percentage': partition_percent}, ignore_index=True)		
 			
 	# Calculate mean and stdv statistics
-	# axis = 0 calculates the column wise mean of the dataframe
 	avg_stats = bedstats_df.mean(axis=0) 
 	stdv_stats = bedstats_df.std(axis=0)
 	avg_dictionary = dict(avg_stats)
 	stdv_dictionary = dict(stdv_stats) 
-
-	# Save bedstats_df as csv file and put it into the user defined output_folder
-	bedstats_csv = bedstats_df.to_csv(index=False)
-	shutil.move("./bedstats_csv", args.output_folder)
-
-	tar_archive_path = os.path.join(args.output_folder, tar_archive_file)
-	bedstats_df_path = os.path.join(args.output_folder, bedstats_csv)
-
 	
+	# Save bedstats_df as csv file and put it into the user defined output_folder	
+	bedset_stats = os.path.join(args.output_folder, args.bedset_name + '.csv')
+	bedstats_df.to_csv(bedset_stats, index=False)
+
+		
 	# CREATE THE IGD DATABASE
 	# Create a .txt file with the paths to the queried bed files as input to igd the command
-	txt_file = open("bedfile_paths.txt", "wr")
+	txt_bed_path = os.path.join(args.output_folder, args.bedset_name + '.txt')
+	txt_file = open(txt_bed_path, "wr") # need to double check mode
 	for files in es:
-		bedfile_path = files['bedfile_path'][0]
+		bedfile_path = files[BEDFILE_PATH_KEY][0]
 		txt_file.write(bedfile_path)
 	txt_file.close()
-	txt_file_path = os.path.abspath("bedfile_paths.txt")
-	pm.clean_add(txt_file_path)
+	pm.clean_add(txt_bed_path)
 
 	# define CML template to create iGD database
-	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name}"
+	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name}" # put contents into igd folder, zip and provide path to zipped file.
 	igd_folder_name = args.bedset_name + "_igd"
 	igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
 	os.makedirs(igd_folder_path)
-	if os.path.exists(igd_folder_path):
-		print("Directory {} succesfully created".format(igd_folder_name))
-	else:
-		raise Exception("igd folder could not be created")
+	print("Directory {} succesfully created".format(igd_folder_name))
 
-	cmd = igd_template.format(bed_source_path=txt_file_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
-	pm.run(cmd, target=igd_folder_path)
+	cmd = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
+	pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
 	
 	# create a nested dictionary with avgs,stdv, and paths to tar archives, bedset csv file and igd database. 
 	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive": [tar_archive_path],	
-							'bedset_df': [bedstats_df_path], 'igd_path': [igd_folder_path]}
+							'bedset_df': [bedset_stats], 'igd_path': [igd_folder_path]}
 	
 	# Insert bedset information into BEDSET_INDEX
-	try:
-		bbconf.insert_bedsets_data(data=bedset_summary_info)
-		print("{} summary info was succesfully inserted into the BEDSET_INDEX".format(args.bedset_name))
-	except elasticsearch.ElasticsearchException as ind_ex:
-		print("Error: Bedset info could not be inserted into index", ind_ex)
+	bbc.insert_bedsets_data(data=bedset_summary_info)
+	print("{} summary info was succesfully inserted into the {}".format(args.bedset_name, BEDSET_INDEX))
+
 
 	pm.stop_pipeline()
 
