@@ -14,13 +14,13 @@ import pandas as pd
 from elasticsearch import Elasticsearch
 import bbconf
 from bbconf.const import *
-import shutil
+import shutil, json
 import tarfile
 
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
-parser.add_argument("-q", "--JSONquery-path", help="what variable to perform to search in", type=str) # path to JSON with query
-parser.add_argument("-c", "--bb-config", dest="bedbase_config", type=str, required=False, default=None,
+parser.add_argument("-q", "--JSON-query", help="path to JSON file containing the query", type=str) # path to JSON with query
+parser.add_argument("-c", "--bbconfig-path", dest="bedbase_config", type=str, required=False, default=None,
                     help="path to the bedbase configuration file")
 parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
 parser.add_argument("-o", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
@@ -52,11 +52,15 @@ def main():
 	# 	# need to iterate through the returned dictionary to find files paths
 	# 	search_hits = search_result['hits']['hits']
 	
+	def JSON_to_dict(file_name):
+		with open(filename) as f_in:
+			return(json.load(f_in))
+
 	# Establish Elasticsearch connection and check status using bbconf
 	bbc.establish_elasticsearch_connection()
 
 	# Use bbconf method to look for files in the es index
-	es = bbc.search_bedfiles(query=args.query)
+	es = bbc.search_bedfiles(query=JSON_to_dict(args.JSON_query))
 
 	# check for prescence of the output folder and create it if needed
 	output_folder = os.path.dirname(args.output_file)
