@@ -24,7 +24,6 @@ parser.add_argument("-c", "--bbconfig", type=str, required=False, default=None,
                     help="path to the bedbase configuration file")
 parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
 parser.add_argument("-f", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
-#parser.add_argument("-p", "--port", help="port number to set connection to elasticsearch", type=str)
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
@@ -122,17 +121,29 @@ def main():
 		print(bedfile_path)
 		txt_file.write("{}\r\n".format(bedfile_path))
 	txt_file.close()
-	#pm.clean_add(txt_bed_path)
+	pm.clean_add(txt_bed_path)
 
-	# define CML template to create iGD database
-	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name}" # put contents into igd folder, zip and provide path to zipped file.
-	igd_folder_name = args.bedset_name + "_igd" # shpuld add a conditional statement to check if the folder exists
+	# iGD database
+	igd_folder_name = args.bedset_name + "_igd" # should add a conditional statement to check if the folder exists
 	igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
 	os.makedirs(igd_folder_path)
 	print("Directory {} succesfully created".format(igd_folder_name))
 
-	cmd = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
+	# create a temp file to untar bed file, use them to create the igd database and then clean them 
+	bed_temp = args.bedset_name + "_temp"
+	bed_temp_path = os.path.join(args.output_folder, bed_temp)
+	os.makedirs(bed_temp_path)
+
+	# Command templates for IGD database construction
+	tar_template = "tar -xf {tar_archive} -C {temp_dir}"
+	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name}" # put contents into igd folder, zip and provide path to zipped file.
+	gzip_template = "gzip -r {dir}"
+	cmd1 = tar_template.format(tar_archive=tar_archive_file, temp_dir=bed_temp_path)
+	cmd2 = igd_template.format(bed_source_path=bed_temp_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
+	cmd3 = gzip_template.format(dir=igd_folder_path)
+	cmd = [cmd1, cmd2, cmd3]
 	pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
+	pm.clean_add(bed_temp_path)
 	
 	# create a nested dictionary with avgs,stdv, and paths to tar archives, bedset csv file and igd database. 
 	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive": [tar_archive_file],	
@@ -141,7 +152,7 @@ def main():
 	
 	# Insert bedset information into BEDSET_INDEX
 	bbc.insert_bedsets_data(data=bedset_summary_info)
-	print("{} summary info was succesfully inserted into the {}".format(args.bedset_name, BEDSET_INDEX))
+	print("{} summary info was succesfully inserted into the {} =D".format(args.bedset_name, BEDSET_INDEX))
 
 
 	pm.stop_pipeline()
