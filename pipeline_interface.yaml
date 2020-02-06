@@ -7,15 +7,15 @@ pipelines:
     path: bedbuncher_ESlowclient.py
     looper_args: True
     arguments:
-      "--JSONquery": JSONquery_path
+      "--JSON-query-path": JSONquery_path
       "--bedset-name": bedset_name
-      "-output_folder": output_folder_path
-      "--bbconfig-path": bbconfig_path
+      "--output-folder": output_folder_path
+      "--bbconfig": bbconfig_path
     resources:
       default: 
         file_size: "0"
-        cores: "8"
-        mem: "16000"
+        cores: "1"
+        mem: "12000"
         time: "00-18:00:00"
     
 
