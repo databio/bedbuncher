@@ -27,14 +27,15 @@ parser.add_argument("-f", "--output-folder", help="path to folder where tar file
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
-                                            required=["--query", "--bedset_name"])
+                                            required=["--JSON-query-path", "--bedset_name", "--output-folder"])
+
 args = parser.parse_args()
 
 # SET OUTPUT FOLDER
-# use output parent argument from looper
+# use output parent argument from looper to place pipeline stats (live separately from bedset results)
 out_parent = args.output_parent
 
-bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bbconfig))
+bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg())
 
 def main():
 	pm = pypiper.PipelineManager(name="bedbuncher-pipeline", outfolder=out_parent, args=args)
@@ -55,14 +56,27 @@ def main():
 		print("Output directory does not exist. Creating: {}".format(output_folder))
 		os.makedirs(output_folder)
 
+	
+	# Determine if search object has duplicate files and remove them to avoid downstream complications.  
+	# es = [i for n, i in enumerate(es) if i not in es[:n]]
+	def remove_duplicates(in_list):
+		new_list = []
+		for i in in_list:
+			if i not in new_list:
+				new_list.append(i)
+		return(new_list)
+
+	if len([j for j in es if es.count(j) > 1]) != 0:
+		es = remove_duplicates(es)
+
+
 	# Create a tar archive using the paths to the bed files provided by the bbconf search object
-	# find path through es[i]['path']
-	tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar.gz') #should provide a path instead of just the name
+	tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar.gz') 
 	tar_archive = tarfile.open(tar_archive_file, mode="w:gz") #w:gz open for gzip cmpressed writing
    	
 	for files in es:
    		bedfile_path = files[BEDFILE_PATH_KEY] 
-   		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path), recursive=False, filter=None) # see if setting arc name is default
+   		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path), recursive=False, filter=None) 
 	tar_archive.close()
 
 	# Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
@@ -73,13 +87,11 @@ def main():
 						'promoterCore_frequency', 'promoterCore_percentage',
 						'promoterProx_frequency', 'promoterProx_percentage'])
 	
-	# transform individual stats from dictionary into floats to perform calculations
+	# transform individual stats from dictionary into floats to perform calculations, if needed
 	def make_float(es_element):
 		float(es_element[0])
 
-	# How to access elements in search object produced by bbconf.search_index : es[i]['path']
-
-	# iterate through the ['hits']['hits']['_source'] attribute of the bedset
+	# Access elements in search object produced by bbc.search
 	for bed_meta in es:
 		file_id = bed_meta["id"][0] # 'id': ['3']
 		gc_content = bed_meta["gc_content"][0]
@@ -99,13 +111,13 @@ def main():
 			bedstats_df = bedstats_df.append({partition_id + '_frequency': partition_frequency, 
 							partition_id + '_percentage': partition_percent}, ignore_index=True)		
 			
-	# Calculate mean and stdv statistics
+	# Calculate bedset statistics
 	avg_stats = bedstats_df.mean(axis=0) 
 	stdv_stats = bedstats_df.std(axis=0)
 	avg_dictionary = dict(avg_stats)
-	print(avg_dictionary)
+	#print(avg_dictionary)
 	stdv_dictionary = dict(stdv_stats) 
-	print(stdv_dictionary)
+	#print(stdv_dictionary)
 	
 	# Save bedstats_df as csv file and put it into the user defined output_folder	
 	bedset_stats = os.path.join(args.output_folder, args.bedset_name + '.csv')
@@ -113,9 +125,9 @@ def main():
 
 		
 	# CREATE THE IGD DATABASE
-	# Create a .txt file with the paths to the queried bed files as input to igd the command
+	# Create a .txt file with the paths to the queried bed files as input to the igd create command
 	txt_bed_path = os.path.join(args.output_folder, args.bedset_name + '.txt')
-	txt_file = open(txt_bed_path, "a") # need to double check mode
+	txt_file = open(txt_bed_path, "a") 
 	for files in es:
 		bedfile_path = files[BEDFILE_PATH_KEY]
 		print(bedfile_path)
@@ -124,30 +136,30 @@ def main():
 	pm.clean_add(txt_bed_path)
 
 	# iGD database
-	igd_folder_name = args.bedset_name + "_igd" # should add a conditional statement to check if the folder exists
+	igd_folder_name = args.bedset_name + "_igd" 
 	igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
 	os.makedirs(igd_folder_path)
 	print("Directory {} succesfully created".format(igd_folder_name))
 
 	# create a temp file to untar bed file, use them to create the igd database and then clean them 
-	bed_temp = args.bedset_name + "_temp"
-	bed_temp_path = os.path.join(args.output_folder, bed_temp)
-	os.makedirs(bed_temp_path)
+	#bed_temp = args.bedset_name + "_temp"
+	#bed_temp_path = os.path.join(args.output_folder, bed_temp)
+	#os.makedirs(bed_temp_path)
 
 	# Command templates for IGD database construction
 	tar_template = "tar -xf {tar_archive} -C {temp_dir}"
-	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name}" # put contents into igd folder, zip and provide path to zipped file.
+	igd_template = "igd create -f {bed_source_path} {igd_folder_path} {database_name}"
 	gzip_template = "gzip -r {dir}"
-	cmd1 = tar_template.format(tar_archive=tar_archive_file, temp_dir=bed_temp_path)
-	cmd2 = igd_template.format(bed_source_path=bed_temp_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
-	cmd3 = gzip_template.format(dir=igd_folder_path)
-	cmd = [cmd1, cmd2, cmd3]
+	#cmd1 = tar_template.format(tar_archive=tar_archive_file, temp_dir=bed_temp_path)
+	cmd1 = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
+	cmd2 = gzip_template.format(dir=igd_folder_path)
+	cmd = [cmd1, cmd2]
 	pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
 	pm.clean_add(bed_temp_path)
 	
-	# create a nested dictionary with avgs,stdv, and paths to tar archives, bedset csv file and igd database. 
-	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive": [tar_archive_file],	
-							'bedset_df': [bedset_stats], 'igd_path': [igd_folder_path]}
+	# create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database. 
+	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive_path": [tar_archive_file],	
+							'bedset_df': [bedset_stats], 'igd_database__path': [igd_folder_path]}
 	print(bedset_summary_info)
 	
 	# Insert bedset information into BEDSET_INDEX
