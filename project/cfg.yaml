@@ -5,9 +5,9 @@ metadata:
 
 derived_attributes: [JSONquery_path, output_folder_path, bbconfig_path]
 data_sources:
-  source1: ../tests/{JSONquery_name}.json
-  source2: ../tests/BEDset_output/
-  source3: ../{bbconfig_name}.yaml
+  source1: ~/Desktop/bedbuncher/tests/{JSONquery_name}.json
+  source2: ~/Desktop/bedbuncher/tests/BEDset_output/
+  source3: ~/Desktop/bedbuncher/{bbconfig_name}.yaml
  
 constant_attributes:
   protocol: "bedbuncher"

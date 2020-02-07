@@ -10,6 +10,7 @@ pipelines:
       "--JSON-query-path": JSONquery_path
       "--bedset-name": bedset_name
       "--output-folder": output_folder_path
+    optional_arguments:
       "--bbconfig": bbconfig_path
     resources:
       default: 
