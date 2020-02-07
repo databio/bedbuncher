@@ -4,7 +4,7 @@ protocol_mapping:
 pipelines:
   bedbuncher:
     name: bedbuncher
-    path: bedbuncher_ESlowclient.py
+    path: bedbuncher.py
     looper_args: True
     arguments:
       "--JSON-query-path": JSONquery_path
