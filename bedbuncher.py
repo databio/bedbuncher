@@ -69,7 +69,6 @@ def main():
 	if len([j for j in es if es.count(j) > 1]) != 0:
 		es = remove_duplicates(es)
 
-
 	# Create a tar archive using the paths to the bed files provided by the bbconf search object
 	tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar.gz') 
 	tar_archive = tarfile.open(tar_archive_file, mode="w:gz") #w:gz open for gzip cmpressed writing
@@ -119,13 +118,12 @@ def main():
 	stdv_dictionary = dict(stdv_stats) 
 	#print(stdv_dictionary)
 	
-	# Save bedstats_df as csv file and put it into the user defined output_folder	
+	# Save bedstats_df as csv file into the user defined output_folder	
 	bedset_stats = os.path.join(args.output_folder, args.bedset_name + '.csv')
 	bedstats_df.to_csv(bedset_stats, index=False)
-
-		
-	# CREATE THE IGD DATABASE
-	# Create a .txt file with the paths to the queried bed files as input to the igd create command
+	
+	# IGD DATABASE
+	# Need a .txt file with the paths to the queried bed files as input to the igd create command
 	txt_bed_path = os.path.join(args.output_folder, args.bedset_name + '.txt')
 	txt_file = open(txt_bed_path, "a") 
 	for files in es:
@@ -147,20 +145,18 @@ def main():
 	#os.makedirs(bed_temp_path)
 
 	# Command templates for IGD database construction
-	tar_template = "tar -xf {tar_archive} -C {temp_dir}"
-	igd_template = "igd create -f {bed_source_path} {igd_folder_path} {database_name}"
+	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name} -f"
 	gzip_template = "gzip -r {dir}"
-	#cmd1 = tar_template.format(tar_archive=tar_archive_file, temp_dir=bed_temp_path)
 	cmd1 = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
 	cmd2 = gzip_template.format(dir=igd_folder_path)
 	cmd = [cmd1, cmd2]
 	pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
-	pm.clean_add(bed_temp_path)
 	
 	# create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database. 
 	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive_path": [tar_archive_file],	
 							'bedset_df': [bedset_stats], 'igd_database__path': [igd_folder_path]}
-	print(bedset_summary_info)
+	
+	print("{} summary info and additional output files:{}".format(args.bedset_name, bedset_summary_info))
 	
 	# Insert bedset information into BEDSET_INDEX
 	bbc.insert_bedsets_data(data=bedset_summary_info)
