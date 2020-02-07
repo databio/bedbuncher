@@ -8,7 +8,7 @@ Example bedsets:
 
 
 ## Before running the pipeline 
-**Required**: A PEP will with an attribute specifying a path to a `JSON` file that contains the query to create the `bedset` (see the `project` directory for reference).
+**Required**: A PEP will with an attribute specifying a path to a `JSON` file that contains the query to create the `bedset` (see the `tests` directory for reference).
 
 
 ## To run the pipeline 
