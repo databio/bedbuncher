@@ -59,22 +59,24 @@ def main():
 	
 	# Determine if search object has duplicate files and remove them to avoid downstream complications.  
 	# es = [i for n, i in enumerate(es) if i not in es[:n]]
-	def remove_duplicates(in_list):
-		new_list = []
-		for i in in_list:
-			if i not in new_list:
-				new_list.append(i)
-		return(new_list)
+	# def remove_duplicates(in_list):
+	# 	new_list = []
+	# 	for i in in_list:
+	# 		if i not in new_list:
+	# 			new_list.append(i)
+	# 	return(new_list)
 
-	if len([j for j in es if es.count(j) > 1]) != 0:
-		es = remove_duplicates(es)
+	# if len([j for j in es if es.count(j) > 1]) != 0:
+	# 	es = remove_duplicates(es)
 
 	# Create a tar archive using the paths to the bed files provided by the bbconf search object
-	tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar.gz') 
-	tar_archive = tarfile.open(tar_archive_file, mode="w:gz") #w:gz open for gzip cmpressed writing
+	tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar') 
+	tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3) #w:gz open for gzip cmpressed writing
    	
+	print("{} tar ball is being created".format(args.bedset_name))
+
 	for files in es:
-   		bedfile_path = files[BEDFILE_PATH_KEY] 
+   		bedfile_path = files[BEDFILE_PATH_KEY][0] 
    		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path), recursive=False, filter=None) 
 	tar_archive.close()
 
@@ -127,7 +129,7 @@ def main():
 	txt_bed_path = os.path.join(args.output_folder, args.bedset_name + '.txt')
 	txt_file = open(txt_bed_path, "a") 
 	for files in es:
-		bedfile_path = files[BEDFILE_PATH_KEY]
+		bedfile_path = files[BEDFILE_PATH_KEY][0]
 		print(bedfile_path)
 		txt_file.write("{}\r\n".format(bedfile_path))
 	txt_file.close()
