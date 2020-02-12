@@ -15,6 +15,7 @@ import sys
 import pandas as pd
 import bbconf
 from bbconf.const import *
+from bbconf.exceptions import BedBaseConfError
 import json
 import tarfile
 
@@ -51,9 +52,14 @@ def main():
 	bbc.establish_elasticsearch_connection()
 
 	# Use bbconf method to look for files in the ES index
-	search_results = bbc.search_bedfiles(query=JSON_to_dict(args.JSON_query_path))
+	q = JSON_to_dict(args.JSON_query_path)
+	search_results = bbc.search_bedfiles(query=q)
+	nhits = len(search_results)
+	if nhits < 1:
+		raise BedBaseConfError("No BED files match the query: {}".format(q))
+	print("{} BED files match the query".format(nhits))
 
-	# check for prescence of the output folder and create it if needed
+	# check for presence of the output folder and create it if needed
 	output_folder = os.path.dirname(args.output_folder)
 	if not os.path.exists(output_folder):
 		print("Output directory does not exist. Creating: {}".format(output_folder))
@@ -62,21 +68,14 @@ def main():
 	# Create a tar archive using the paths to the bed files provided by the bbconf search object
 	tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar') 
 	tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
-
-	print("{} tar ball is being created".format(args.bedset_name))
-
+	print("Creating TAR archive: {}".format(tar_archive_file))
 	for files in search_results:
 		bedfile_path = files[BEDFILE_PATH_KEY][0]
 		tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path), recursive=False, filter=None)
 	tar_archive.close()
 
 	# Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
-	bedstats_df = pd.DataFrame(columns=['BEDfile_id', 'GC_Content', 'Regions_number', 'Distance_from_feature', 
-						'exon_frequency', 'exon_percentage', 
-						'intergenic_frequency', 'intergenic_percentage',
-						'intron_frequency', 'intron_percentage',
-						'promoterCore_frequency', 'promoterCore_percentage',
-						'promoterProx_frequency', 'promoterProx_percentage'])
+	bedstats_df = pd.DataFrame(columns=[JSON_ID_KEY] + JSON_NUMERIC_KEY_VALUES)
 	
 	# transform individual stats from dictionary into floats to perform calculations, if needed
 	def make_float(es_element):
@@ -85,13 +84,18 @@ def main():
 	# Access elements in search object produced by bbc.search
 	print("Reading individual BED file statistics from Elasticsearch")
 	for bed_file in search_results:
-		data = {}
-		for key in JSON_NUMERIC_KEYS:
-			print("processing '{}' key".format(key))
-			bed_file_stat = bed_file[key][0]
-			data.update({key: bed_file_stat})
-		bedstats_df = bedstats_df.append(data)
-	print("bedstats_df: {}".format(bedstats_df))
+		bid = bed_file[JSON_ID_KEY][0]
+		data = {JSON_ID_KEY: bid}
+		print("Processing: {}".format(bid))
+		for key in JSON_NUMERIC_KEY_VALUES:
+			try:
+				bed_file_stat = bed_file[key][0]
+			except KeyError:
+				print("'{}' statistic not available for: {}".format(key, bid))
+			else:
+				data.update({key: bed_file_stat})
+		bedstats_df = bedstats_df.append(data, ignore_index=True)
+	bedstats_df = bedstats_df.dropna(1)
 	# Calculate bedset statistics
 	print("Calculating bedset statistics")
 	avg_dictionary = dict(bedstats_df.mean(axis=0))
@@ -100,23 +104,21 @@ def main():
 	bedset_stats = os.path.join(args.output_folder, args.bedset_name + '.csv')
 	print("Saving bedset statistics to: {}".format(bedset_stats))
 	bedstats_df.to_csv(bedset_stats, index=False)
-	
+
+	print("Creating iGD database")
 	# IGD DATABASE
 	# Need a .txt file with the paths to the queried bed files as input to the igd create command
 	txt_bed_path = os.path.join(args.output_folder, args.bedset_name + '.txt')
-	txt_file = open(txt_bed_path, "a") 
+	txt_file = open(txt_bed_path, "a")
 	for files in search_results:
 		bedfile_path = files[BEDFILE_PATH_KEY][0]
-		print(bedfile_path)
 		txt_file.write("{}\r\n".format(bedfile_path))
 	txt_file.close()
 	pm.clean_add(txt_bed_path)
-	print("Creating iGD database")
 	# iGD database
 	igd_folder_name = args.bedset_name + "_igd" 
 	igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
 	os.makedirs(igd_folder_path)
-	print("Directory {} successfully created".format(igd_folder_name))
 
 	# Command templates for IGD database construction
 	igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name} -f"
@@ -124,13 +126,11 @@ def main():
 	cmd1 = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
 	cmd2 = gzip_template.format(dir=igd_folder_path)
 	cmd = [cmd1, cmd2]
-	# pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
+	pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
 	
 	# create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database. 
 	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive_path": [tar_archive_file],	
 							'bedset_df': [bedset_stats], 'igd_database__path': [igd_folder_path]}
-	
-	print("{} summary info and additional output files: {}".format(args.bedset_name, bedset_summary_info))
 	
 	# Insert bedset information into BEDSET_INDEX
 	bbc.insert_bedsets_data(data=bedset_summary_info)
