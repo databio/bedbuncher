@@ -3,11 +3,10 @@ metadata:
   output_dir: . 
   pipeline_interfaces: ../pipeline_interface.yaml 
 
-derived_attributes: [JSONquery_path, output_folder_path, bbconfig_path]
+derived_attributes: [JSONquery_path, output_folder_path]
 data_sources:
-  source1: ~/Desktop/bedbuncher/tests/{JSONquery_name}.json
-  source2: ~/Desktop/bedbuncher/tests/BEDset_output/
-  source3: ~/Desktop/bedbuncher/{bbconfig_name}.yaml
+  source1: ../tests/{JSONquery_name}.json
+  source2: ../tests/BEDset_output/
  
 constant_attributes:
   protocol: "bedbuncher"
