@@ -22,7 +22,7 @@ import tarfile
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
 parser.add_argument("-q", "--JSON-query-path", help="path to JSON file containing the query", type=str) # path to JSON with query
-parser.add_argument("-c", "--bbconfig", type=str, required=False, default=None,
+parser.add_argument("-c", "--bedbase-config", type=str, required=False, default=None,
                     help="path to the bedbase configuration file")
 parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
 parser.add_argument("-f", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
@@ -101,9 +101,9 @@ def main():
 	avg_dictionary = dict(bedstats_df.mean(axis=0))
 	stdv_dictionary = dict(bedstats_df.std(axis=0))
 	# Save bedstats_df as csv file into the user defined output_folder
-	bedset_stats = os.path.join(args.output_folder, args.bedset_name + '.csv')
-	print("Saving bedset statistics to: {}".format(bedset_stats))
-	bedstats_df.to_csv(bedset_stats, index=False)
+	bedset_stats_path = os.path.join(args.output_folder, args.bedset_name + '.csv')
+	print("Saving bedset statistics to: {}".format(bedset_stats_path))
+	bedstats_df.to_csv(bedset_stats_path, index=False)
 
 	print("Creating iGD database")
 	# IGD DATABASE
@@ -129,8 +129,8 @@ def main():
 	pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
 	
 	# create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database. 
-	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_stdv': stdv_dictionary, "tar_archive_path": [tar_archive_file],	
-							'bedset_df': [bedset_stats], 'igd_database__path': [igd_folder_path]}
+	bedset_summary_info = {'bedset_means': avg_dictionary, 'bedset_standard_deviation': stdv_dictionary, "bedset_tar_archive_path": [tar_archive_file],
+							'bedfiles_gd_stats': [bedset_stats_path], 'igd_database_path': [igd_folder_path], "bedset_gd_stats": x}
 	
 	# Insert bedset information into BEDSET_INDEX
 	bbc.insert_bedsets_data(data=bedset_summary_info)
