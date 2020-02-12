@@ -3,8 +3,8 @@
     "must": [
       {
         "range": {
-          "GC_content": {
-            "gt": 0.9
+          "gc_content": {
+            "gt": 0.1
           }
         }
       }
