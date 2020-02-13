@@ -65,7 +65,7 @@ def main():
         os.makedirs(output_folder)
 
     # Create a tar archive using the paths to the bed files provided by the bbconf search object
-    tar_archive_file = os.path.join(args.output_folder, args.bedset_name + '.tar')
+    tar_archive_file = os.path.abspath(os.path.join(args.output_folder, args.bedset_name + '.tar'))
     tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
     print("Creating TAR archive: {}".format(tar_archive_file))
     for files in search_results:
@@ -122,16 +122,16 @@ def main():
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
         bedfile_path = files[BEDFILE_PATH_KEY][0]
-        if os.path.islink(bedfile_path):
-        	txt_file.write("{}\r\n".format(os.readlink(bedfile_path)))
-        else:
-        	txt_file.write("{}\r\n".format(bedfile_path))
+        bedfile_target = os.readlink(bedfile_path) \
+            if os.path.islink(bedfile_path) else bedfile_path
+        txt_file.write("{}\r\n".format(bedfile_target))
     txt_file.close()
     pm.clean_add(txt_bed_path)
     # iGD database
     igd_folder_name = args.bedset_name + "_igd"
     igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
-    os.makedirs(igd_folder_path)
+    if not os.path.exists(igd_folder_path):
+        os.makedirs(igd_folder_path)
 
     # Command templates for IGD database construction
     igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name} -f"
@@ -142,11 +142,12 @@ def main():
     pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
 
     # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
-    bedset_summary_info = {JSON_BEDSET_MEANS_KEY: means_dictionary,
+    bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
+                           JSON_BEDSET_MEANS_KEY: means_dictionary,
                            JSON_BEDSET_SD_KEY: stdv_dictionary,
                            JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
                            JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
-                           JSON_BEDSET_SUMMARY_STATS: [bedset_stats_path],
+                           JSON_BEDSET_GD_STATS: [bedset_stats_path],
                            JSON_BEDSET_IGD_DB_KEY: [igd_folder_path]}
 
     # Insert bedset information into BEDSET_INDEX
