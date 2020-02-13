@@ -1,1 +1,13 @@
-{"match_all":{}}
+{
+  "bool": {
+    "must": [
+      {
+        "range": {
+          "gc_content": {
+            "gt": 0.1
+          }
+        }
+      }
+    ]
+  }
+}
