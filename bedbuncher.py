@@ -97,13 +97,24 @@ def main():
     bedstats_df = bedstats_df.dropna(1)
     # Calculate bedset statistics
     print("Calculating bedset statistics")
-    avg_dictionary = dict(bedstats_df.mean(axis=0))
-    stdv_dictionary = dict(bedstats_df.std(axis=0))
-    # Save bedstats_df as csv file into the user defined output_folder
-    bedset_stats_path = os.path.join(args.output_folder, args.bedset_name + '.csv')
-    print("Saving bedset statistics to: {}".format(bedset_stats_path))
-    bedstats_df.to_csv(bedset_stats_path, index=False)
+    bedfiles_means = bedstats_df.mean(axis=0)
+    bedfiles_stdv = bedstats_df.std(axis=0)
+    means_dictionary = dict(bedfiles_means)
+    stdv_dictionary = dict(bedfiles_stdv)
+    # Save bedstats_df matrix as csv file into the user defined output_folder
+    bedfiles_stats_path = os.path.join(args.output_folder, args.bedset_name + '_bedstat.csv')
+    print("Saving bedfiles statistics to: {}".format(bedfiles_stats_path))
+    bedstats_df.to_csv(bedfiles_stats_path, index=False)
 
+    # Save bedset_df  as csv file into the user defined output_folder
+    means_df = pd.DataFrame(bedfiles_means, columns=["Mean"])
+    stdv_df = pd.DataFrame(bedfiles_stdv, columns=["Standard Deviation"])
+    bedset_df = pd.concat([means_df, stdv_df], axis=1)
+    bedset_stats_path = os.path.join(args.output_folder, args.bedset_name + '_summaryStats.csv')
+    print("Saving bedset statistics to: {}".format(bedset_stats_path))
+    bedset_df.to_csv(bedset_stats_path, index=False)
+
+    
     print("Creating iGD database")
     # IGD DATABASE
     # Need a .txt file with the paths to the queried bed files as input to the igd create command
@@ -111,7 +122,10 @@ def main():
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
         bedfile_path = files[BEDFILE_PATH_KEY][0]
-        txt_file.write("{}\r\n".format(bedfile_path))
+        if os.path.islink(bedfile_path):
+        	txt_file.write("{}\r\n".format(os.readlink(bedfile_path)))
+        else:
+        	txt_file.write("{}\r\n".format(bedfile_path))
     txt_file.close()
     pm.clean_add(txt_bed_path)
     # iGD database
@@ -128,12 +142,12 @@ def main():
     pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
 
     # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
-    bedset_summary_info = {JSON_BEDSET_MEANS_KEY: avg_dictionary,
+    bedset_summary_info = {JSON_BEDSET_MEANS_KEY: means_dictionary,
                            JSON_BEDSET_SD_KEY: stdv_dictionary,
                            JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
-                           JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedset_stats_path],
+                           JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
+                           JSON_BEDSET_SUMMARY_STATS: [bedset_stats_path],
                            JSON_BEDSET_IGD_DB_KEY: [igd_folder_path]}
-    # , JSON_BEDSET_GD_STATS: x}
 
     # Insert bedset information into BEDSET_INDEX
     bbc.insert_bedsets_data(data=bedset_summary_info)
