@@ -112,7 +112,7 @@ def main():
     bedset_df = pd.concat([means_df, stdv_df], axis=1)
     bedset_stats_path = os.path.join(args.output_folder, args.bedset_name + '_summaryStats.csv')
     print("Saving bedset statistics to: {}".format(bedset_stats_path))
-    bedset_df.to_csv(bedset_stats_path, index=False)
+    bedset_df.to_csv(bedset_stats_path)
 
     
     print("Creating iGD database")
