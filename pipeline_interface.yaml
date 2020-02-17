@@ -11,7 +11,7 @@ pipelines:
       "--bedset-name": bedset_name
       "--output-folder": output_folder_path
     optional_arguments:
-      "--bbconfig": bbconfig_path
+      "--bedbase-config": bbconfig_path
     resources:
       default: 
         file_size: "0"
