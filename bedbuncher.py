@@ -141,6 +141,14 @@ def main():
     cmd = [cmd1, cmd2]
     pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
 
+    # INSERT DATA INTO BEDFILES AND BEDSETS INDEX
+    # update bedsets affiliation data for each queried bedfile
+    for files in search_results: 
+        bedset_aff = files[JSON_BEDSETS_AFFILIATION_KEY]
+        if args.bedset_name not in bedset_aff:
+            bbc.insert_bedfiles_data(data=bedset_aff.append(args.bedset_name))
+            print("updating {} bedsets affiliation data".format(files[JSON_ID_KEY]))
+
     # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
                            JSON_BEDSET_MEANS_KEY: means_dictionary,
