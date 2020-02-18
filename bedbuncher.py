@@ -38,7 +38,6 @@ out_parent = args.output_parent
 
 bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg())
 
-
 def JSON_to_dict(file_name):
     with open(file_name) as f_in:
         return json.load(f_in)
@@ -127,27 +126,39 @@ def main():
         txt_file.write("{}\r\n".format(bedfile_target))
     txt_file.close()
     pm.clean_add(txt_bed_path)
+    
     # iGD database
     igd_folder_name = args.bedset_name + "_igd"
     igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
     if not os.path.exists(igd_folder_path):
         os.makedirs(igd_folder_path)
+    pm.clean_add(igd_folder_path)
 
     # Command templates for IGD database construction
     igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name} -f"
-    gzip_template = "gzip -r {dir}"
-    cmd1 = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
-    cmd2 = gzip_template.format(dir=igd_folder_path)
-    cmd = [cmd1, cmd2]
-    pm.run(cmd, target=os.path.join(igd_folder_path, args.bedset_name + ".igd"))
+    gzip_template = "gzip {dir}"
+    cmd = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
+    #cmd2 = gzip_template.format(dir=igd_folder_path)
+    pm.run(cmd, target=os.path.join(igd_folder_path + ".tar.gz"))
+
+    # TAR the iGD database folder
+    def flatten(tarinfo):
+        tarinfo.name = os.path.basename(tarinfo.name)
+        return tarinfo
+
+    igd_tar_archive_path = os.path.abspath(os.path.join(igd_folder_path + '.tar.gz'))
+    with tarfile.open(igd_tar_archive_path, mode="w:gz", dereference=True, debug=3) as igd_tar:
+        print("Creating iGD database TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
+        igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
+
 
     # INSERT DATA INTO BEDFILES AND BEDSETS INDEX
     # update bedsets affiliation data for each queried bedfile
-    for files in search_results: 
-        bedset_aff = files[JSON_BEDSETS_AFFILIATION_KEY]
-        if args.bedset_name not in bedset_aff:
-            bbc.insert_bedfiles_data(data=bedset_aff.append(args.bedset_name))
-            print("updating {} bedsets affiliation data".format(files[JSON_ID_KEY]))
+    # for files in search_results: 
+    #     bedset_aff = files[JSON_BEDSETS_AFFILIATION_KEY]
+    #     if args.bedset_name not in bedset_aff:
+    #         bbc.insert_bedfiles_data(data=bedset_aff.append(args.bedset_name))
+    #         print("updating {} bedsets affiliation data".format(files[JSON_ID_KEY]))
 
     # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
@@ -156,7 +167,7 @@ def main():
                            JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
                            JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
                            JSON_BEDSET_GD_STATS: [bedset_stats_path],
-                           JSON_BEDSET_IGD_DB_KEY: [igd_folder_path]}
+                           JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path]}
 
     # Insert bedset information into BEDSET_INDEX
     bbc.insert_bedsets_data(data=bedset_summary_info)
