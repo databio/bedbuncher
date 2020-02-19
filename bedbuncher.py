@@ -147,6 +147,38 @@ def main():
         print("Creating iGD database TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
 
+    # PRODUCE OUTPUT BEDSET PEP
+    #filter annotation sheet file based on IDs found in the search
+    
+    # Folder for annoatation sheet and config.yaml file
+    PEP_folder_name = args.bedset_name + "_PEP"
+    PEP_folder_path = os.path.join(args.output_folder, PEP_folder_name)
+    if not os.path.exists(PEP_folder_path):
+        os.makedirs(PEP_folder_path)
+    
+    # Create bedset annotation sheet
+    samples_project = peppy.Project(args.samples_config_path)
+    pep_df = samples_project.sheet
+    bed_id_list = []
+    print("Creating PEP for {}".format(args.bedset_name))
+    for bedfiles in search_results:
+        bed_id_list.append(bedfiles[JSON_ID_KEY][0])
+    pep_filtered_df = pep_df.loc[pep_df["sample_name"].isin(bed_id_list)] #currently name of the id column is hardcoded
+    bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
+    bedset_pep_path = os.path.join(PEP_folder_path, bedset_annotation_sheet)
+    pep_filtered_df.to_csv(bedset_pep_path)
+
+    #load config file for original samples file
+    with open(args.samples_config_path) as f:
+        cfg = f.read()
+    cfg_dict = yaml.load(cfg)
+    cfg_dict["metadata"]["sample_table"] = bedset_annotation_sheet
+    bedset_cfg = cfg_dict
+
+    bedset_yaml_path = os.path.abspath(os.path.join(PEP_folder_path, args.bedset_name + '_config.yaml'))
+    with open(bedset_yaml_path, "w") as y:
+        yaml.dump(bedset_cfg, y, sort_keys=False, default_flow_style=False )
+
 
     # INSERT DATA INTO BEDFILES AND BEDSETS INDEX
     # update bedsets affiliation data for each queried bedfile
