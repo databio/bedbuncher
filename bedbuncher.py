@@ -23,8 +23,7 @@ parser = ArgumentParser(description="A pipeline to produce sets of bed files (be
 parser.add_argument("-q", "--JSON-query-path", help="path to JSON file containing the query", type=str) # path to JSON with query
 parser.add_argument("-c", "--bedbase-config", type=str, required=False, default=None,
                     help="path to the bedbase configuration file")
-parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", default=str )
-parser.add_argument("-f", "--output-folder", help="path to folder where tar file and igd database will be stored", default=str )
+parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", type=str)
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
@@ -37,6 +36,7 @@ args = parser.parse_args()
 out_parent = args.output_parent
 
 bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg())
+
 
 def JSON_to_dict(file_name):
     with open(file_name) as f_in:
@@ -58,13 +58,14 @@ def main():
     print("{} BED files match the query".format(nhits))
 
     # check for presence of the output folder and create it if needed
-    output_folder = os.path.dirname(args.output_folder)
+    output_folder = os.path.abspath(os.path.join(
+        bbc[CFG_PATH_KEY][CFG_PIP_OUTPUT_KEY], args.bedset_name))
     if not os.path.exists(output_folder):
         print("Output directory does not exist. Creating: {}".format(output_folder))
         os.makedirs(output_folder)
 
     # Create a tar archive using the paths to the bed files provided by the bbconf search object
-    tar_archive_file = os.path.abspath(os.path.join(args.output_folder, args.bedset_name + '.tar'))
+    tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
     tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
     print("Creating TAR archive: {}".format(tar_archive_file))
     for files in search_results:
@@ -74,10 +75,6 @@ def main():
 
     # Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
     bedstats_df = pd.DataFrame(columns=[JSON_ID_KEY] + JSON_NUMERIC_KEY_VALUES)
-
-    # transform individual stats from dictionary into floats to perform calculations, if needed
-    def make_float(es_element):
-        float(es_element[0])
 
     # Access elements in search object produced by bbc.search
     print("Reading individual BED file statistics from Elasticsearch")
@@ -101,7 +98,7 @@ def main():
     means_dictionary = dict(bedfiles_means)
     stdv_dictionary = dict(bedfiles_stdv)
     # Save bedstats_df matrix as csv file into the user defined output_folder
-    bedfiles_stats_path = os.path.join(args.output_folder, args.bedset_name + '_bedstat.csv')
+    bedfiles_stats_path = os.path.join(output_folder, args.bedset_name + '_bedstat.csv')
     print("Saving bedfiles statistics to: {}".format(bedfiles_stats_path))
     bedstats_df.to_csv(bedfiles_stats_path, index=False)
 
@@ -109,15 +106,14 @@ def main():
     means_df = pd.DataFrame(bedfiles_means, columns=["Mean"])
     stdv_df = pd.DataFrame(bedfiles_stdv, columns=["Standard Deviation"])
     bedset_df = pd.concat([means_df, stdv_df], axis=1)
-    bedset_stats_path = os.path.join(args.output_folder, args.bedset_name + '_summaryStats.csv')
+    bedset_stats_path = os.path.join(output_folder, args.bedset_name + '_summaryStats.csv')
     print("Saving bedset statistics to: {}".format(bedset_stats_path))
     bedset_df.to_csv(bedset_stats_path)
 
-    
     print("Creating iGD database")
     # IGD DATABASE
     # Need a .txt file with the paths to the queried bed files as input to the igd create command
-    txt_bed_path = os.path.join(args.output_folder, args.bedset_name + '.txt')
+    txt_bed_path = os.path.join(output_folder, args.bedset_name + '.txt')
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
         bedfile_path = files[BEDFILE_PATH_KEY][0]
@@ -129,7 +125,7 @@ def main():
     
     # iGD database
     igd_folder_name = args.bedset_name + "_igd"
-    igd_folder_path = os.path.join(args.output_folder, igd_folder_name)
+    igd_folder_path = os.path.join(output_folder, igd_folder_name)
     if not os.path.exists(igd_folder_path):
         os.makedirs(igd_folder_path)
     pm.clean_add(igd_folder_path)
