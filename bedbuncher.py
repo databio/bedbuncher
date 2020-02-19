@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-bedset paths and info generating pipeline
+bedset paths, statistics and PEP generating pipeline
 """
 
 __author__ = ["Jose Verdezoto", "Michal Stolarczyk"]
@@ -9,21 +9,22 @@ __version__ = "0.0.1"
 
 from argparse import ArgumentParser
 import pypiper
-import os
-import sys
+import peppy
+import os, sys
 import pandas as pd
 import bbconf
 from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
-import json
+import json, yaml
 import tarfile
 
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
 parser.add_argument("-q", "--JSON-query-path", help="path to JSON file containing the query", type=str) # path to JSON with query
-parser.add_argument("-c", "--bedbase-config", type=str, required=False, default=None,
+parser.add_argument("-b", "--bedbase-config", type=str, required=False, default=None,
                     help="path to the bedbase configuration file")
-parser.add_argument("-b", "--bedset-name", help="name assigned to queried bedset", type=str)
+parser.add_argument("-c", "--samples-config-path", help="path to the PEP config.yaml file", type=str)
+parser.add_argument("-n", "--bedset-name", help="name assigned to queried bedset", type=str)
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
@@ -138,6 +139,7 @@ def main():
     pm.run(cmd, target=os.path.join(igd_folder_path + ".tar.gz"))
 
     # TAR the iGD database folder
+    # need to define a function to tar only the contents of a folder, excluding the dir hierarchy
     def flatten(tarinfo):
         tarinfo.name = os.path.basename(tarinfo.name)
         return tarinfo
@@ -150,9 +152,9 @@ def main():
     # PRODUCE OUTPUT BEDSET PEP
     #filter annotation sheet file based on IDs found in the search
     
-    # Folder for annoatation sheet and config.yaml file
+    # Folder for annotation sheet and config.yaml file
     PEP_folder_name = args.bedset_name + "_PEP"
-    PEP_folder_path = os.path.join(args.output_folder, PEP_folder_name)
+    PEP_folder_path = os.path.join(output_folder, PEP_folder_name)
     if not os.path.exists(PEP_folder_path):
         os.makedirs(PEP_folder_path)
     
@@ -160,7 +162,7 @@ def main():
     samples_project = peppy.Project(args.samples_config_path)
     pep_df = samples_project.sheet
     bed_id_list = []
-    print("Creating PEP for {}".format(args.bedset_name))
+    print("Creating PEP annotation sheet and config.yaml for {}".format(args.bedset_name))
     for bedfiles in search_results:
         bed_id_list.append(bedfiles[JSON_ID_KEY][0])
     pep_filtered_df = pep_df.loc[pep_df["sample_name"].isin(bed_id_list)] #currently name of the id column is hardcoded
@@ -177,7 +179,12 @@ def main():
 
     bedset_yaml_path = os.path.abspath(os.path.join(PEP_folder_path, args.bedset_name + '_config.yaml'))
     with open(bedset_yaml_path, "w") as y:
-        yaml.dump(bedset_cfg, y, sort_keys=False, default_flow_style=False )
+        yaml.dump(bedset_cfg, y, sort_keys=False, default_flow_style=False)
+
+    PEP_tar_archive_path = os.path.abspath(os.path.join(PEP_folder_path + '.tar.gz'))
+    with tarfile.open(PEP_tar_archive_path, mode="w:gz", dereference=True, debug=3) as PEP_tar:
+        print("Creating PEP TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
+        PEP_tar.add(PEP_folder_path, arcname="", recursive=True, filter=flatten)
 
 
     # INSERT DATA INTO BEDFILES AND BEDSETS INDEX
@@ -195,7 +202,8 @@ def main():
                            JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
                            JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
                            JSON_BEDSET_GD_STATS: [bedset_stats_path],
-                           JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path]}
+                           JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
+                           JSON_BEDSET_PEP_KEY: [PEP_tar_archive_path]}
 
     # Insert bedset information into BEDSET_INDEX
     bbc.insert_bedsets_data(data=bedset_summary_info)
