@@ -1,5 +1,5 @@
 path:
-  bedstat_output: $LABROOT/resources/regions/bedstat_output
+  pipelines_output: $LABROOT/resources/regions/bedstat_output
 
 database:
   host: localhost
