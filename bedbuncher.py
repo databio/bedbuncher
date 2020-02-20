@@ -153,10 +153,10 @@ def main():
     #filter annotation sheet file based on IDs found in the search
     
     # Folder for annotation sheet and config.yaml file
-    PEP_folder_name = args.bedset_name + "_PEP"
-    PEP_folder_path = os.path.join(output_folder, PEP_folder_name)
-    if not os.path.exists(PEP_folder_path):
-        os.makedirs(PEP_folder_path)
+    pep_folder_name = args.bedset_name + "_PEP"
+    pep_folder_path = os.path.join(output_folder, pep_folder_name)
+    if not os.path.exists(pep_folder_path):
+        os.makedirs(pep_folder_path)
     
     # Create bedset annotation sheet
     samples_project = peppy.Project(args.samples_config_path)
@@ -167,7 +167,7 @@ def main():
         bed_id_list.append(bedfiles[JSON_ID_KEY][0])
     pep_filtered_df = pep_df.loc[pep_df["sample_name"].isin(bed_id_list)] #currently name of the id column is hardcoded
     bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
-    bedset_pep_path = os.path.join(PEP_folder_path, bedset_annotation_sheet)
+    bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     pep_filtered_df.to_csv(bedset_pep_path)
 
     #load config file for original samples file
@@ -177,14 +177,14 @@ def main():
     cfg_dict["metadata"]["sample_table"] = bedset_annotation_sheet
     bedset_cfg = cfg_dict
 
-    bedset_yaml_path = os.path.abspath(os.path.join(PEP_folder_path, args.bedset_name + '_config.yaml'))
+    bedset_yaml_path = os.path.abspath(os.path.join(pep_folder_path, args.bedset_name + '_config.yaml'))
     with open(bedset_yaml_path, "w") as y:
         yaml.dump(bedset_cfg, y, sort_keys=False, default_flow_style=False)
 
-    PEP_tar_archive_path = os.path.abspath(os.path.join(PEP_folder_path + '.tar.gz'))
-    with tarfile.open(PEP_tar_archive_path, mode="w:gz", dereference=True, debug=3) as PEP_tar:
-        print("Creating PEP TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
-        PEP_tar.add(PEP_folder_path, arcname="", recursive=True, filter=flatten)
+    pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
+    with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) as pep_tar:
+        print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))
+        pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
 
 
     # INSERT DATA INTO BEDFILES AND BEDSETS INDEX
