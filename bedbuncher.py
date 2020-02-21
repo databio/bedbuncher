@@ -161,6 +161,7 @@ def main():
     # Create bedset annotation sheet
     samples_project = peppy.Project(args.samples_config_path)
     pep_df = samples_project.sheet
+    pep_df = pep_df.reset_index(drop=True)
     bed_id_list = []
     print("Creating PEP annotation sheet and config.yaml for {}".format(args.bedset_name))
     for bedfiles in search_results:
@@ -168,7 +169,7 @@ def main():
     pep_filtered_df = pep_df.loc[pep_df["sample_name"].isin(bed_id_list)] #currently name of the id column is hardcoded
     bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
-    pep_filtered_df.to_csv(bedset_pep_path)
+    pep_filtered_df.to_csv(bedset_pep_path, index=False)
 
     #load config file for original samples file
     with open(args.samples_config_path) as f:
@@ -185,15 +186,16 @@ def main():
     with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) as pep_tar:
         print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))
         pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
+    pm.clean_add(pep_folder_path)
 
 
     # INSERT DATA INTO BEDFILES AND BEDSETS INDEX
     # update bedsets affiliation data for each queried bedfile
-    # for files in search_results: 
-    #     bedset_aff = files[JSON_BEDSETS_AFFILIATION_KEY]
-    #     if args.bedset_name not in bedset_aff:
-    #         bbc.insert_bedfiles_data(data=bedset_aff.append(args.bedset_name))
-    #         print("updating {} bedsets affiliation data".format(files[JSON_ID_KEY]))
+     # for files in search_results: 
+     #     bedset_aff = files[JSON_BEDSETS_AFFILIATION_KEY]
+     #     if args.bedset_name not in bedset_aff:
+     #         bbc.insert_bedfiles_data(data=bedset_aff.append(args.bedset_name))
+     #         print("updating {} bedsets affiliation data".format(files[JSON_ID_KEY]))
 
     # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
@@ -203,11 +205,11 @@ def main():
                            JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
                            JSON_BEDSET_GD_STATS: [bedset_stats_path],
                            JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
-                           JSON_BEDSET_PEP_KEY: [PEP_tar_archive_path]}
+                           JSON_BEDSET_PEP_KEY: [pep_tar_archive_path]}
 
     # Insert bedset information into BEDSET_INDEX
-    bbc.insert_bedsets_data(data=bedset_summary_info)
-    print("'{}' summary info was successfully inserted into {}".format(args.bedset_name, BEDSET_INDEX))
+    #bbc.insert_bedsets_data(data=bedset_summary_info)
+    #print("'{}' summary info was successfully inserted into {}".format(args.bedset_name, BEDSET_INDEX))
     pm.stop_pipeline()
 
 
