@@ -189,10 +189,10 @@ def main():
                            JSON_BEDSET_SD_KEY: stdv_dictionary,
                            JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
                            JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
-                           JSON_BEDSET_GD_STATS: [bedset_stats_path],
+                           JSON_BEDSET_GD_STATS_KEY: [bedset_stats_path],
                            JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
                            JSON_BEDSET_PEP_KEY: [pep_tar_archive_path],
-                           JSON_BEDSET_BED_IDS: [hit_ids]}
+                           JSON_BEDSET_BED_IDS_KEY: [hit_ids]}
 
     # Insert bedset information into BEDSET_INDEX
     bbc.insert_bedsets_data(data=bedset_summary_info)
