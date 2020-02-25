@@ -89,7 +89,7 @@ def main():
     if nhits < 1:
         raise BedBaseConfError("No BED files match the query: {}".format(q))
     print("{} BED files match the query".format(nhits))
-    hit_ids = [i[JSON_ID_KEY][0] for i in search_results]
+    hit_ids = {i[JSON_ID_KEY][0]: i[JSON_MD5SUM_KEY][0] for i in search_results}
     bedset_digest = get_bedset_digest(search_results)
     print("bedset digest: {}".format(bedset_digest))
 
