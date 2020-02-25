@@ -110,13 +110,14 @@ def main():
     tar_archive.close()
 
     # Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
-    bedstats_df = pd.DataFrame(columns=[JSON_ID_KEY] + JSON_NUMERIC_KEY_VALUES)
+    bedstats_df = pd.DataFrame(columns=[JSON_MD5SUM_KEY, JSON_ID_KEY] + JSON_NUMERIC_KEY_VALUES)
 
     # Access elements in search object produced by bbc.search
     print("Reading individual BED file statistics from Elasticsearch")
     for bed_file in search_results:
         bid = bed_file[JSON_ID_KEY][0]
-        data = {JSON_ID_KEY: bid}
+        bmd5sum = bed_file[JSON_MD5SUM_KEY][0]
+        data = {JSON_MD5SUM_KEY: bmd5sum, JSON_ID_KEY: bid}
         print("Processing: {}".format(bid))
         for key in JSON_NUMERIC_KEY_VALUES:
             try:
