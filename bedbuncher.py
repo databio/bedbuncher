@@ -72,7 +72,7 @@ def get_bedset_digest(sr):
     """
     from hashlib import md5
     m = md5()
-    m.update(";".join([bf[JSON_ID_KEY][0] + ":" + bf[JSON_MD5SUM_KEY][0] for bf in sr]).encode('utf-8'))
+    m.update(";".join(sorted([bf[JSON_MD5SUM_KEY][0] for bf in sr])).encode('utf-8'))
     return m.hexdigest()
 
 
@@ -178,7 +178,7 @@ def main():
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
 
     # PRODUCE OUTPUT BEDSET PEP
-    #filter annotation sheet file based on IDs found in the search
+    # filter annotation sheet file based on IDs found in the search
     print("Creating PEP annotation sheet and config.yaml for {}".
           format(args.bedset_name))
     pep_folder_path = os.path.join(output_folder, args.bedset_name + "_PEP")
@@ -193,7 +193,7 @@ def main():
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     pep_filtered_df.to_csv(bedset_pep_path, index=False)
 
-    #load config file for original samples file
+    # load config file for original samples file
     with open(args.samples_config_path) as f:
         cfg = f.read()
     cfg_dict = yaml.load(cfg)
@@ -212,7 +212,7 @@ def main():
     bedset_digest = get_bedset_digest(search_results)
     print("bedset digest: {}".format(bedset_digest))
 
-    # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
+    # create a nested dictionary with bedset metadata
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
                            JSON_BEDSET_MEANS_KEY: means_dictionary,
                            JSON_BEDSET_SD_KEY: stdv_dictionary,
@@ -225,12 +225,12 @@ def main():
                            JSON_MD5SUM_KEY: [bedset_digest]}
 
     # Insert bedset information into BEDSET_INDEX
-
     try:
         bbc.insert_bedsets_data(data=bedset_summary_info, doc_id=bedset_digest)
     except ConflictError:
         from warnings import warn
-        warn("Document '{}' exists in Elasticsearch. Not inserting.")
+        warn("Document '{}' exists in Elasticsearch. Not inserting.".
+             format(bedset_digest))
     else:
         print("'{}' summary info was successfully inserted into {}".
               format(args.bedset_name, BEDSET_INDEX))
