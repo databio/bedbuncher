@@ -30,6 +30,7 @@ parser.add_argument("-n", "--bedset-name", help="name assigned to queried bedset
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
                                   required=["--JSON-query-path", "--bedset_name", "--output-folder"])
 
+
 args = parser.parse_args()
 
 # SET OUTPUT FOLDER
@@ -53,7 +54,8 @@ def main():
     # Use bbconf method to look for files in the ES index
     q = JSON_to_dict(args.JSON_query_path)
     search_results = bbc.search_bedfiles(query=q)
-    nhits = len(search_results)
+    hit_ids = [i[JSON_ID_KEY][0] for i in search_results]
+    nhits = len(hit_ids)
     if nhits < 1:
         raise BedBaseConfError("No BED files match the query: {}".format(q))
     print("{} BED files match the query".format(nhits))
@@ -151,22 +153,16 @@ def main():
 
     # PRODUCE OUTPUT BEDSET PEP
     #filter annotation sheet file based on IDs found in the search
-    
-    # Folder for annotation sheet and config.yaml file
-    pep_folder_name = args.bedset_name + "_PEP"
-    pep_folder_path = os.path.join(output_folder, pep_folder_name)
+    print("Creating PEP annotation sheet and config.yaml for {}".
+          format(args.bedset_name))
+    pep_folder_path = os.path.join(output_folder, args.bedset_name + "_PEP")
     if not os.path.exists(pep_folder_path):
         os.makedirs(pep_folder_path)
-    
-    # Create bedset annotation sheet
-    samples_project = peppy.Project(args.samples_config_path)
+    samples_project = peppy.Project(os.path.abspath(args.samples_config_path))
+    print("Project path: {}".format(samples_project))
     pep_df = samples_project.sheet
     pep_df = pep_df.reset_index(drop=True)
-    bed_id_list = []
-    print("Creating PEP annotation sheet and config.yaml for {}".format(args.bedset_name))
-    for bedfiles in search_results:
-        bed_id_list.append(bedfiles[JSON_ID_KEY][0])
-    pep_filtered_df = pep_df.loc[pep_df["sample_name"].isin(bed_id_list)] #currently name of the id column is hardcoded
+    pep_filtered_df = pep_df.loc[pep_df["sample_name"].isin(hit_ids)] #currently name of the id column is hardcoded
     bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     pep_filtered_df.to_csv(bedset_pep_path, index=False)
@@ -176,26 +172,16 @@ def main():
         cfg = f.read()
     cfg_dict = yaml.load(cfg)
     cfg_dict["metadata"]["sample_table"] = bedset_annotation_sheet
-    bedset_cfg = cfg_dict
 
     bedset_yaml_path = os.path.abspath(os.path.join(pep_folder_path, args.bedset_name + '_config.yaml'))
     with open(bedset_yaml_path, "w") as y:
-        yaml.dump(bedset_cfg, y, sort_keys=False, default_flow_style=False)
+        yaml.dump(cfg_dict, y, sort_keys=False, default_flow_style=False)
 
     pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
     with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) as pep_tar:
         print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))
         pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     pm.clean_add(pep_folder_path)
-
-
-    # INSERT DATA INTO BEDFILES AND BEDSETS INDEX
-    # update bedsets affiliation data for each queried bedfile
-     # for files in search_results: 
-     #     bedset_aff = files[JSON_BEDSETS_AFFILIATION_KEY]
-     #     if args.bedset_name not in bedset_aff:
-     #         bbc.insert_bedfiles_data(data=bedset_aff.append(args.bedset_name))
-     #         print("updating {} bedsets affiliation data".format(files[JSON_ID_KEY]))
 
     # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
@@ -205,11 +191,12 @@ def main():
                            JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
                            JSON_BEDSET_GD_STATS: [bedset_stats_path],
                            JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
-                           JSON_BEDSET_PEP_KEY: [pep_tar_archive_path]}
+                           JSON_BEDSET_PEP_KEY: [pep_tar_archive_path],
+                           JSON_BEDSET_BED_IDS: [hit_ids]}
 
     # Insert bedset information into BEDSET_INDEX
-    #bbc.insert_bedsets_data(data=bedset_summary_info)
-    #print("'{}' summary info was successfully inserted into {}".format(args.bedset_name, BEDSET_INDEX))
+    bbc.insert_bedsets_data(data=bedset_summary_info)
+    print("'{}' summary info was successfully inserted into {}".format(args.bedset_name, BEDSET_INDEX))
     pm.stop_pipeline()
 
 
