@@ -85,15 +85,17 @@ def main():
     # Use bbconf method to look for files in the ES index
     q = JSON_to_dict(args.JSON_query_path)
     search_results = bbc.search_bedfiles(query=q)
-    hit_ids = [i[JSON_ID_KEY][0] for i in search_results]
-    nhits = len(hit_ids)
+    nhits = len(search_results)
     if nhits < 1:
         raise BedBaseConfError("No BED files match the query: {}".format(q))
     print("{} BED files match the query".format(nhits))
+    hit_ids = [i[JSON_ID_KEY][0] for i in search_results]
+    bedset_digest = get_bedset_digest(search_results)
+    print("bedset digest: {}".format(bedset_digest))
 
     # check for presence of the output folder and create it if needed
     output_folder = os.path.abspath(os.path.join(
-        bbc[CFG_PATH_KEY][CFG_PIP_OUTPUT_KEY], args.bedset_name))
+        bbc[CFG_PATH_KEY][CFG_PIP_OUTPUT_KEY], bedset_digest))
     if not os.path.exists(output_folder):
         print("Output directory does not exist. Creating: {}".format(output_folder))
         os.makedirs(output_folder)
@@ -208,9 +210,6 @@ def main():
         print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))
         pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     pm.clean_add(pep_folder_path)
-
-    bedset_digest = get_bedset_digest(search_results)
-    print("bedset digest: {}".format(bedset_digest))
 
     # create a nested dictionary with bedset metadata
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
