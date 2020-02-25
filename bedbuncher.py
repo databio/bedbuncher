@@ -15,6 +15,7 @@ import pandas as pd
 import bbconf
 from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
+from elasticsearch.exceptions import ConflictError
 import json, yaml
 import tarfile
 
@@ -41,8 +42,38 @@ bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg())
 
 
 def JSON_to_dict(file_name):
+    """
+    read json file to a dict
+
+    :param str file_name: path to the file to read
+    :return Mapping: read file
+    """
     with open(file_name) as f_in:
         return json.load(f_in)
+
+
+def flatten(tarinfo):
+    """
+    function to tar only the contents of a folder, excluding the dir hierarchy
+
+    :param tarinfo:
+    :return:
+    """
+    tarinfo.name = os.path.basename(tarinfo.name)
+    return tarinfo
+
+
+def get_bedset_digest(sr):
+    """
+    Get a unique id for a beset, specific to its contents.
+
+    :param Mapping sr: search results. Output of BedBaseConf.search_bedfiles
+    :return str: bedset digest
+    """
+    from hashlib import md5
+    m = md5()
+    m.update(";".join([bf[JSON_ID_KEY][0] + ":" + bf[JSON_MD5SUM_KEY][0] for bf in sr]).encode('utf-8'))
+    return m.hexdigest()
 
 
 def main():
@@ -141,11 +172,6 @@ def main():
     pm.run(cmd, target=os.path.join(igd_folder_path + ".tar.gz"))
 
     # TAR the iGD database folder
-    # need to define a function to tar only the contents of a folder, excluding the dir hierarchy
-    def flatten(tarinfo):
-        tarinfo.name = os.path.basename(tarinfo.name)
-        return tarinfo
-
     igd_tar_archive_path = os.path.abspath(os.path.join(igd_folder_path + '.tar.gz'))
     with tarfile.open(igd_tar_archive_path, mode="w:gz", dereference=True, debug=3) as igd_tar:
         print("Creating iGD database TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
@@ -183,6 +209,9 @@ def main():
         pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     pm.clean_add(pep_folder_path)
 
+    bedset_digest = get_bedset_digest(search_results)
+    print("bedset digest: {}".format(bedset_digest))
+
     # create a nested dictionary with avgs,stdv, paths to tar archives, bedset csv file and igd database.
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
                            JSON_BEDSET_MEANS_KEY: means_dictionary,
@@ -192,11 +221,19 @@ def main():
                            JSON_BEDSET_GD_STATS_KEY: [bedset_stats_path],
                            JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
                            JSON_BEDSET_PEP_KEY: [pep_tar_archive_path],
-                           JSON_BEDSET_BED_IDS_KEY: [hit_ids]}
+                           JSON_BEDSET_BED_IDS_KEY: [hit_ids],
+                           JSON_MD5SUM_KEY: [bedset_digest]}
 
     # Insert bedset information into BEDSET_INDEX
-    bbc.insert_bedsets_data(data=bedset_summary_info)
-    print("'{}' summary info was successfully inserted into {}".format(args.bedset_name, BEDSET_INDEX))
+
+    try:
+        bbc.insert_bedsets_data(data=bedset_summary_info, doc_id=bedset_digest)
+    except ConflictError:
+        from warnings import warn
+        warn("Document '{}' exists in Elasticsearch. Not inserting.")
+    else:
+        print("'{}' summary info was successfully inserted into {}".
+              format(args.bedset_name, BEDSET_INDEX))
     pm.stop_pipeline()
 
 
