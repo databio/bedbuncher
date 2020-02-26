@@ -16,7 +16,7 @@ import bbconf
 from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
 from elasticsearch.exceptions import ConflictError
-import json, yaml
+import json, yaml, yacman
 import tarfile
 
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
@@ -24,7 +24,6 @@ parser = ArgumentParser(description="A pipeline to produce sets of bed files (be
 parser.add_argument("-q", "--JSON-query-path", help="path to JSON file containing the query", type=str) # path to JSON with query
 parser.add_argument("-b", "--bedbase-config", type=str, required=False, default=None,
                     help="path to the bedbase configuration file")
-parser.add_argument("-c", "--samples-config-path", help="path to the PEP config.yaml file", type=str)
 parser.add_argument("-n", "--bedset-name", help="name assigned to queried bedset", type=str)
 
 # add pypiper args to make pipeline looper compatible
@@ -181,31 +180,36 @@ def main():
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
 
     # PRODUCE OUTPUT BEDSET PEP
-    # filter annotation sheet file based on IDs found in the search
+    # produce basic csv annotation sheet based on IDs found in the search
     print("Creating PEP annotation sheet and config.yaml for {}".
           format(args.bedset_name))
     pep_folder_path = os.path.join(output_folder, args.bedset_name + "_PEP")
     if not os.path.exists(pep_folder_path):
         os.makedirs(pep_folder_path)
-    samples_project = peppy.Project(os.path.abspath(args.samples_config_path))
-    print("Project path: {}".format(samples_project))
-    pep_df = samples_project.sheet
-    pep_df = pep_df.reset_index(drop=True)
-    pep_filtered_df = pep_df.loc[pep_df["sample_name"].isin(hit_ids)] #currently name of the id column is hardcoded
+    
+    bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path"])
+    output_bed_path = "source1"
+    for bed_meta in search_results:
+        bed_id = bed_meta[JSON_ID_KEY][0]
+        bedset_pep_df = bedset_pep_df.append({"sample_name": bed_id,
+                                            "output_file_path" : output_bed_path},
+                                            ignore_index=True)
     bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
-    pep_filtered_df.to_csv(bedset_pep_path, index=False)
+    bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
-    # load config file for original samples file
-    with open(args.samples_config_path) as f:
-        cfg = f.read()
-    cfg_dict = yaml.load(cfg)
-    cfg_dict["metadata"]["sample_table"] = bedset_annotation_sheet
+    # create yaml config file for newly produced bedset
+    y = yacman.YacAttMap() 
+    y.metadata = {}
+    y.metadata.sample_table = bedset_annotation_sheet
+    y.metadata.output_dir = "$HOME"
+    y.derived_attributes = {}
+    y.derived_attributes = ["output_file_path"]
+    y.data_sources = {}
+    y.data_sources = {"source1" : "../{sample_name}.bed.gz"}
+    y.write(os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml"))
 
-    bedset_yaml_path = os.path.abspath(os.path.join(pep_folder_path, args.bedset_name + '_config.yaml'))
-    with open(bedset_yaml_path, "w") as y:
-        yaml.dump(cfg_dict, y, sort_keys=False, default_flow_style=False)
-
+    # create a TAR archive for the PEP annotation and config files
     pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
     with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) as pep_tar:
         print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))

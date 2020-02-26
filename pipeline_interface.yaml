@@ -11,7 +11,6 @@ pipelines:
       "--bedset-name": bedset_name
     optional_arguments:
       "--bedbase-config": bbconfig_path
-      "--samples-config-path": samples_config_path
     resources:
       default: 
         file_size: "0"

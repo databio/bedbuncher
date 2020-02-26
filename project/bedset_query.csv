@@ -1,2 +1,2 @@
-sample_name,bedset_name,JSONquery_name,bbconfig_name,samples_config_name,JSONquery_path,output_folder_path,samples_config_path
-bedset1,test_bedset2,test_query,bbconfig,LOLAHema_samples_cfg,source1,source2,source3
+sample_name,bedset_name,JSONquery_name,bbconfig_name,JSONquery_path,output_folder_path
+bedset1,test_bedset2,test_query,bbconfig,source1,source2
