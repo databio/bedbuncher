@@ -28,7 +28,7 @@ parser.add_argument("-n", "--bedset-name", help="name assigned to queried bedset
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
-                                  required=["--JSON-query-path", "--bedset_name", "--output-folder"])
+                                  required=["--JSON-query-path", "--bedset_name"])
 
 
 args = parser.parse_args()
@@ -64,7 +64,7 @@ def flatten(tarinfo):
 
 def get_bedset_digest(sr):
     """
-    Get a unique id for a beset, specific to its contents.
+    Get a unique id for a bedset, specific to its contents.
 
     :param Mapping sr: search results. Output of BedBaseConf.search_bedfiles
     :return str: bedset digest
@@ -99,13 +99,45 @@ def main():
         print("Output directory does not exist. Creating: {}".format(output_folder))
         os.makedirs(output_folder)
 
-    # Create a tar archive using the paths to the bed files provided by the bbconf search object
+    # PRODUCE OUTPUT BEDSET PEP
+    # Create PEP annotation and config files and TAR them along the queried .bed.gz files
+    # produce basic csv annotation sheet based on IDs found in the bbc search
+    print("Creating PEP annotation sheet and config.yaml for {}".
+          format(args.bedset_name))
+    pep_folder_path = os.path.join(output_folder, args.bedset_name + "_PEP")
+    if not os.path.exists(pep_folder_path):
+        os.makedirs(pep_folder_path)
+    
+    bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path"])
+    output_bed_path = "source1"
+    for bed_meta in search_results:
+        bed_id = bed_meta[JSON_ID_KEY][0]
+        bedset_pep_df = bedset_pep_df.append({"sample_name": bed_id,
+                                            "output_file_path" : output_bed_path},
+                                            ignore_index=True)
+    bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
+    bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
+    bedset_pep_df.to_csv(bedset_pep_path, index=False)
+
+    # create yaml config file for newly produced bedset
+    y = yacman.YacAttMap() 
+    y.metadata = {}
+    y.metadata.sample_table = bedset_annotation_sheet
+    y.metadata.output_dir = "$HOME"
+    y.derived_attributes = {}
+    y.derived_attributes = ["output_file_path"]
+    y.data_sources = {}
+    y.data_sources = {"source1" : "{sample_name}.bed.gz"}
+    y.write(os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml"))
+
+    # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
     tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
     print("Creating TAR archive: {}".format(tar_archive_file))
     for files in search_results:
         bedfile_path = files[BEDFILE_PATH_KEY][0]
         tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path), recursive=False, filter=None)
+    tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     tar_archive.close()
 
     # Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
@@ -170,7 +202,6 @@ def main():
     igd_template = "igd create {bed_source_path} {igd_folder_path} {database_name} -f"
     gzip_template = "gzip {dir}"
     cmd = igd_template.format(bed_source_path=txt_bed_path, igd_folder_path=igd_folder_path, database_name=args.bedset_name)
-    #cmd2 = gzip_template.format(dir=igd_folder_path)
     pm.run(cmd, target=os.path.join(igd_folder_path + ".tar.gz"))
 
     # TAR the iGD database folder
@@ -179,37 +210,8 @@ def main():
         print("Creating iGD database TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
 
-    # PRODUCE OUTPUT BEDSET PEP
-    # produce basic csv annotation sheet based on IDs found in the search
-    print("Creating PEP annotation sheet and config.yaml for {}".
-          format(args.bedset_name))
-    pep_folder_path = os.path.join(output_folder, args.bedset_name + "_PEP")
-    if not os.path.exists(pep_folder_path):
-        os.makedirs(pep_folder_path)
-    
-    bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path"])
-    output_bed_path = "source1"
-    for bed_meta in search_results:
-        bed_id = bed_meta[JSON_ID_KEY][0]
-        bedset_pep_df = bedset_pep_df.append({"sample_name": bed_id,
-                                            "output_file_path" : output_bed_path},
-                                            ignore_index=True)
-    bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
-    bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
-    bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
-    # create yaml config file for newly produced bedset
-    y = yacman.YacAttMap() 
-    y.metadata = {}
-    y.metadata.sample_table = bedset_annotation_sheet
-    y.metadata.output_dir = "$HOME"
-    y.derived_attributes = {}
-    y.derived_attributes = ["output_file_path"]
-    y.data_sources = {}
-    y.data_sources = {"source1" : "../{sample_name}.bed.gz"}
-    y.write(os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml"))
-
-    # create a TAR archive for the PEP annotation and config files
+    # create a separate TAR.gz archive for the PEP annotation and config files
     pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
     with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) as pep_tar:
         print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))
