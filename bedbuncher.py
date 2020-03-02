@@ -71,7 +71,7 @@ def get_bedset_digest(sr):
     """
     from hashlib import md5
     m = md5()
-    m.update(";".join(sorted([bf[JSON_MD5SUM_KEY][0] for bf in sr])).encode('utf-8'))
+    m.update(";".join(sorted([bf[JSON_STATS_SECTION_KEY][JSON_MD5SUM_KEY][0] for bf in sr])).encode('utf-8'))
     return m.hexdigest()
 
 
@@ -88,7 +88,7 @@ def main():
     if nhits < 1:
         raise BedBaseConfError("No BED files match the query: {}".format(q))
     print("{} BED files match the query".format(nhits))
-    hit_ids = {i[JSON_ID_KEY][0]: i[JSON_MD5SUM_KEY][0] for i in search_results}
+    hit_ids = {i[JSON_STATS_SECTION_KEY][JSON_ID_KEY][0]: i[JSON_STATS_SECTION_KEY][JSON_MD5SUM_KEY][0] for i in search_results}
     bedset_digest = get_bedset_digest(search_results)
     print("bedset digest: {}".format(bedset_digest))
 
@@ -108,13 +108,26 @@ def main():
     if not os.path.exists(pep_folder_path):
         os.makedirs(pep_folder_path)
     
-    bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path"])
+    # define column names for annotation sheet based on LOLA requirements
+    meta_list = [
+            JSON_GENOME_KEY, JSON_PROTOCOL_KEY, JSON_CELL_TYPE_KEY, JSON_TISSUE_KEY, JSON_ANTIBODY_KEY, 
+            JSON_TREATMENT_KEY, JSON_DATA_SOURCE_KEY, JSON_DESCRIPTION_KEY]
+    bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path", "file_name"] + meta_list)
     output_bed_path = "source1"
-    for bed_meta in search_results:
-        bed_id = bed_meta[JSON_ID_KEY][0]
-        bedset_pep_df = bedset_pep_df.append({"sample_name": bed_id,
-                                            "output_file_path" : output_bed_path},
-                                            ignore_index=True)
+    for bedfiles in search_results:
+        metadata = bedfiles[JSON_METADATA_SECTION_KEY] #bedfiles["metadata"] is a dict
+        statistics = bedfiles[JSON_STATS_SECTION_KEY]
+        bed_id = statistics[JSON_ID_KEY][0]
+        file_name = statistics[JSON_MD5SUM_KEY][0]
+        pep_metadata = {"sample_name": bed_id, "output_file_path": output_bed_path, "file_name": file_name}
+        for key in meta_list:
+            if key in metadata.keys():
+                bed_file_meta = metadata[key][0]
+                pep_metadata.update({key: bed_file_meta})
+            else:
+                pep_metadata.update({key: ""})
+        bedset_pep_df = bedset_pep_df.append(pep_metadata, ignore_index=True)
+
     bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     bedset_pep_df.to_csv(bedset_pep_path, index=False)
@@ -143,16 +156,18 @@ def main():
     # Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
     bedstats_df = pd.DataFrame(columns=[JSON_MD5SUM_KEY, JSON_ID_KEY] + JSON_NUMERIC_KEY_VALUES)
 
-    # Access elements in search object produced by bbc.search
+    # Access elements in search object produced by bbc.search (both in metadata and statistics sections keys)
     print("Reading individual BED file statistics from Elasticsearch")
     for bed_file in search_results:
-        bid = bed_file[JSON_ID_KEY][0]
-        bmd5sum = bed_file[JSON_MD5SUM_KEY][0]
+        metadata = bed_file[JSON_METADATA_SECTION_KEY]
+        statistics = bed_file[JSON_STATS_SECTION_KEY]
+        bid = statistics[JSON_ID_KEY][0]
+        bmd5sum = statistics[JSON_MD5SUM_KEY][0]
         data = {JSON_MD5SUM_KEY: bmd5sum, JSON_ID_KEY: bid}
         print("Processing: {}".format(bid))
         for key in JSON_NUMERIC_KEY_VALUES:
             try:
-                bed_file_stat = bed_file[key][0]
+                bed_file_stat = statistics[key][0]
             except KeyError:
                 print("'{}' statistic not available for: {}".format(key, bid))
             else:
