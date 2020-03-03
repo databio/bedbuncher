@@ -71,7 +71,7 @@ def get_bedset_digest(sr):
     """
     from hashlib import md5
     m = md5()
-    m.update(";".join(sorted([bf[JSON_STATS_SECTION_KEY][JSON_MD5SUM_KEY][0] for bf in sr])).encode('utf-8'))
+    m.update(";".join(sorted([bf[JSON_MD5SUM_KEY][0] for bf in sr])).encode('utf-8'))
     return m.hexdigest()
 
 
@@ -88,7 +88,7 @@ def main():
     if nhits < 1:
         raise BedBaseConfError("No BED files match the query: {}".format(q))
     print("{} BED files match the query".format(nhits))
-    hit_ids = {i[JSON_STATS_SECTION_KEY][JSON_ID_KEY][0]: i[JSON_STATS_SECTION_KEY][JSON_MD5SUM_KEY][0] for i in search_results}
+    hit_ids = {i[JSON_ID_KEY][0]: i[JSON_MD5SUM_KEY][0] for i in search_results}
     bedset_digest = get_bedset_digest(search_results)
     print("bedset digest: {}".format(bedset_digest))
 
@@ -115,14 +115,12 @@ def main():
     bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path", "file_name"] + meta_list)
     output_bed_path = "source1"
     for bedfiles in search_results:
-        metadata = bedfiles[JSON_METADATA_SECTION_KEY] #bedfiles["metadata"] is a dict
-        statistics = bedfiles[JSON_STATS_SECTION_KEY]
-        bed_id = statistics[JSON_ID_KEY][0]
-        file_name = statistics[JSON_MD5SUM_KEY][0]
-        pep_metadata = {"sample_name": bed_id, "output_file_path": output_bed_path, "file_name": file_name}
+        pep_metadata = {"sample_name": bedfiles[JSON_ID_KEY][0],
+                        "output_file_path": output_bed_path,
+                        "file_name": bedfiles[JSON_MD5SUM_KEY][0]}
         for key in meta_list:
-            if key in metadata.keys():
-                bed_file_meta = metadata[key][0]
+            if key in bedfiles.keys():
+                bed_file_meta = bedfiles[key][0]
                 pep_metadata.update({key: bed_file_meta})
             else:
                 pep_metadata.update({key: ""})
@@ -140,7 +138,7 @@ def main():
     y.derived_attributes = {}
     y.derived_attributes = ["output_file_path"]
     y.data_sources = {}
-    y.data_sources = {"source1" : "{sample_name}.bed.gz"}
+    y.data_sources = {"source1": "{sample_name}.bed.gz"}
     y.write(os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml"))
 
     # Create a tar archive using bed files original paths and bedset PEP
@@ -159,15 +157,12 @@ def main():
     # Access elements in search object produced by bbc.search (both in metadata and statistics sections keys)
     print("Reading individual BED file statistics from Elasticsearch")
     for bed_file in search_results:
-        metadata = bed_file[JSON_METADATA_SECTION_KEY]
-        statistics = bed_file[JSON_STATS_SECTION_KEY]
-        bid = statistics[JSON_ID_KEY][0]
-        bmd5sum = statistics[JSON_MD5SUM_KEY][0]
-        data = {JSON_MD5SUM_KEY: bmd5sum, JSON_ID_KEY: bid}
+        bid = bed_file[JSON_ID_KEY][0]
+        data = {JSON_MD5SUM_KEY: bed_file[JSON_MD5SUM_KEY][0], JSON_ID_KEY: bid}
         print("Processing: {}".format(bid))
         for key in JSON_NUMERIC_KEY_VALUES:
             try:
-                bed_file_stat = statistics[key][0]
+                bed_file_stat = bed_file[key][0]
             except KeyError:
                 print("'{}' statistic not available for: {}".format(key, bid))
             else:
@@ -224,7 +219,6 @@ def main():
     with tarfile.open(igd_tar_archive_path, mode="w:gz", dereference=True, debug=3) as igd_tar:
         print("Creating iGD database TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
-
 
     # create a separate TAR.gz archive for the PEP annotation and config files
     pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
