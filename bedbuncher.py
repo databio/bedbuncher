@@ -130,16 +130,6 @@ def main():
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
-    # create yaml config file for newly produced bedset
-    y = yacman.YacAttMap() 
-    y.metadata = {}
-    y.metadata.sample_table = bedset_annotation_sheet
-    y.metadata.output_dir = "$HOME"
-    y.derived_attributes = {}
-    y.derived_attributes = ["output_file_path"]
-    y.data_sources = {}
-    y.data_sources = {"source1": "{sample_name}.bed.gz"}
-    y.write(os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml"))
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
@@ -227,6 +217,19 @@ def main():
         pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     pm.clean_add(pep_folder_path)
 
+    # create yaml config file for newly produced bedset
+    y = yacman.YacAttMap() 
+    y.metadata = {}
+    y.metadata.sample_table = bedset_annotation_sheet
+    y.metadata.output_dir = "$HOME"
+    y.iGD_dir = {}
+    y.iGD_dir = os.path.join(igd_folder_name, args.bedset_name + ".igd")
+    y.derived_attributes = {}
+    y.derived_attributes = ["output_file_path"]
+    y.data_sources = {}
+    y.data_sources = {"source1": "{sample_name}.bed.gz"}
+    y.write(os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml"))
+
     # create a nested dictionary with bedset metadata
     bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
                            JSON_BEDSET_MEANS_KEY: means_dictionary,
@@ -240,6 +243,7 @@ def main():
                            JSON_MD5SUM_KEY: [bedset_digest]}
 
     # Insert bedset information into BEDSET_INDEX
+    print(hit_ids)
     try:
         bbc.insert_bedsets_data(data=bedset_summary_info, doc_id=bedset_digest)
     except ConflictError:
