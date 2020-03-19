@@ -37,7 +37,7 @@ args = parser.parse_args()
 # use output parent argument from looper to place pipeline stats (live separately from bedset results)
 out_parent = args.output_parent
 
-bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg())
+bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bedbase_config))
 
 
 def JSON_to_dict(file_name):
