@@ -222,8 +222,10 @@ def main():
     y.metadata = {}
     y.metadata.sample_table = bedset_annotation_sheet
     y.metadata.output_dir = "$HOME"
-    y.iGD_dir = {}
+    y.iGD_db = {}
     y.iGD_dir = os.path.join(igd_folder_name, args.bedset_name + ".igd")
+    y.iGD_index = {}
+    y.iGD_index = os.path.join(igd_folder_name, args.bedset_name + "_index.tsv")
     y.derived_attributes = {}
     y.derived_attributes = ["output_file_path"]
     y.data_sources = {}
