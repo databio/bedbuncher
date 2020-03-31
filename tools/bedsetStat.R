@@ -76,7 +76,7 @@ calcRegionCommonality <- function(queryList){
     x = unique(c(0, per))
     a=c()
     for(i in seq_along(x)){
-        a[i] = length(which(per > x[i]))
+        a[i] = length(which(per >= x[i]))
     }
     df = data.table(Perc=x, Counts=a)
     df
@@ -100,7 +100,8 @@ plotRegionCommonality <- function(percCounts) {
         xlab("Percentage of regions in universe (BED set) covered") +
         ylab("Regionset (BED file) count") +
         ggtitle("Region commonality") +
-        xlim(0, 100)
+        xlim(0, 100) +
+        ylim(0, 100)
     return(g)
 }
 
