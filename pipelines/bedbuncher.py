@@ -133,16 +133,6 @@ def main():
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
-    # Create a tar archive using bed files original paths and bedset PEP
-    tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
-    tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
-    print("Creating TAR archive: {}".format(tar_archive_file))
-    for files in search_results:
-        bedfile_path = files[BEDFILE_PATH_KEY][0]
-        tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path), recursive=False, filter=None)
-    tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
-    tar_archive.close()
-
     # Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
     bedstats_df = pd.DataFrame(columns=[JSON_MD5SUM_KEY, JSON_ID_KEY] + JSON_NUMERIC_KEY_VALUES)
 
@@ -230,13 +220,6 @@ def main():
         format(**cmd_vars)
     pm.run(cmd=command, target=json_file_path)
 
-    # create a separate TAR.gz archive for the PEP annotation and config files
-    pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
-    with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) as pep_tar:
-        print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))
-        pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
-    pm.clean_add(pep_folder_path)
-
     # create yaml config file for newly produced bedset
     # create an empty file to write the cfg to
     cfg_path = os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml")
@@ -247,13 +230,32 @@ def main():
         y.metadata.sample_table = bedset_annotation_sheet
         y.metadata.output_dir = "$HOME"
         y.iGD_db = {}
-        y.iGD_dir = os.path.join(igd_folder_name, args.bedset_name + ".igd")
+        y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
         y.iGD_index = {}
         y.iGD_index = os.path.join(igd_folder_name, args.bedset_name + "_index.tsv")
+        y.constant_attributes = {}
+        y.constant_attributes.output_file_path = "source1"
         y.derived_attributes = {}
         y.derived_attributes = ["output_file_path"]
         y.data_sources = {}
         y.data_sources = {"source1": "{sample_name}.bed.gz"}
+
+    # Create a tar archive using bed files original paths and bedset PEP
+    tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
+    tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
+    print("Creating TAR archive: {}".format(tar_archive_file))
+    for files in search_results:
+        bedfile_path = files[BEDFILE_PATH_KEY][0]
+        tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path), recursive=False, filter=None)
+    tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
+    tar_archive.close()
+
+    # create a separate TAR.gz archive for the PEP annotation and config files
+    pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
+    with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) as pep_tar:
+        print("Creating PEP TAR archive: {}".format(os.path.basename(pep_tar_archive_path)))
+        pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
+    pm.clean_add(pep_folder_path)
 
     # read JSON produced in bedsetStat.R (with plot paths)
     with open(json_file_path, 'r', encoding='utf-8') as f:
