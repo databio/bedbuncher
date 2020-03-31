@@ -179,7 +179,7 @@ def main():
         bedfile_path = files[BEDFILE_PATH_KEY][0]
         bedfile_target = os.readlink(bedfile_path) \
             if os.path.islink(bedfile_path) else bedfile_path
-        txt_file.write("{}\r\n".format(bedfile_target))
+        txt_file.write("{}\n".format(bedfile_target))
     txt_file.close()
     pm.clean_add(txt_bed_path)
     
