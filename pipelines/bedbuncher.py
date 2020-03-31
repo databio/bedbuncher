@@ -7,17 +7,20 @@ __author__ = ["Jose Verdezoto", "Michal Stolarczyk"]
 __email__ = "jev4xy@virginia.edu"
 __version__ = "0.0.1"
 
-from argparse import ArgumentParser
-import pypiper
-import peppy
-import os, sys
+import os
+import sys
 import pandas as pd
-import bbconf
+import json
+import tarfile
+
+from argparse import ArgumentParser
 from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
 from elasticsearch.exceptions import ConflictError
-import json, yaml, yacman
-import tarfile
+
+import bbconf
+import pypiper
+import yacman
 
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets) from bedbase")
 
@@ -130,7 +133,6 @@ def main():
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
-
     # Create df with bedfiles metadata: gc_content, num_regions, mean_abs_tss_dist, genomic_partitions
     bedstats_df = pd.DataFrame(columns=[JSON_MD5SUM_KEY, JSON_ID_KEY] + JSON_NUMERIC_KEY_VALUES)
 
@@ -177,7 +179,7 @@ def main():
         bedfile_path = files[BEDFILE_PATH_KEY][0]
         bedfile_target = os.readlink(bedfile_path) \
             if os.path.islink(bedfile_path) else bedfile_path
-        txt_file.write("{}\n".format(bedfile_target))
+        txt_file.write("{}\r\n".format(bedfile_target))
     txt_file.close()
     pm.clean_add(txt_bed_path)
     
@@ -200,23 +202,43 @@ def main():
         print("Creating iGD database TAR archive: {}".format(os.path.basename(igd_tar_archive_path)))
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
 
+    # plot
+    rscript_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools",
+        "bedsetStat.R")
+    assert os.path.exists(rscript_path), \
+        FileNotFoundError("'{}' script not found".format(rscript_path))
+    json_file_path = os.path.join(output_folder, args.bedset_name + ".json")
+    cmd_vars = dict(rscript=rscript_path,
+                    bedfilelist=txt_bed_path,
+                    output_folder=output_folder,
+                    digest=bedset_digest,
+                    id=args.bedset_name,
+                    json=json_file_path)
+    command = "Rscript {rscript} --outputfolder={output_folder} " \
+              "--bedfilelist={bedfilelist} --id={id} --json={json}".\
+        format(**cmd_vars)
+    pm.run(cmd=command, target=json_file_path)
 
     # create yaml config file for newly produced bedset
-    y = yacman.YacAttMap() 
-    y.metadata = {}
-    y.metadata.sample_table = bedset_annotation_sheet
-    y.metadata.output_dir = "$HOME"
-    y.iGD_db = {}
-    y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
-    y.iGD_index = {}
-    y.iGD_index = os.path.join(igd_folder_name, args.bedset_name + "_index.tsv")
-    y.constant_attributes = {}
-    y.constant_attributes.output_file_path = "source1"
-    y.derived_attributes = {}
-    y.derived_attributes = ["output_file_path"]
-    y.data_sources = {}
-    y.data_sources = {"source1": "{sample_name}.bed.gz"}
-    y.write(os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml"))
+    # create an empty file to write the cfg to
+    cfg_path = os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml")
+    open(cfg_path, 'a').close()
+    config_attamp = yacman.YacAttMap(filepath=cfg_path)
+    with config_attamp as y:
+        y.metadata = {}
+        y.metadata.sample_table = bedset_annotation_sheet
+        y.metadata.output_dir = "$HOME"
+        y.iGD_db = {}
+        y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
+        y.iGD_index = {}
+        y.iGD_index = os.path.join(igd_folder_name, args.bedset_name + "_index.tsv")
+        y.constant_attributes = {}
+        y.constant_attributes.output_file_path = "source1"
+        y.derived_attributes = {}
+        y.derived_attributes = ["output_file_path"]
+        y.data_sources = {}
+        y.data_sources = {"source1": "{sample_name}.bed.gz"}
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
@@ -235,20 +257,23 @@ def main():
         pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     pm.clean_add(pep_folder_path)
 
-    # create a nested dictionary with bedset metadata
-    bedset_summary_info = {JSON_ID_KEY: args.bedset_name,
-                           JSON_BEDSET_MEANS_KEY: means_dictionary,
-                           JSON_BEDSET_SD_KEY: stdv_dictionary,
-                           JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
-                           JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
-                           JSON_BEDSET_GD_STATS_KEY: [bedset_stats_path],
-                           JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
-                           JSON_BEDSET_PEP_KEY: [pep_tar_archive_path],
-                           JSON_BEDSET_BED_IDS_KEY: [hit_ids],
-                           JSON_MD5SUM_KEY: [bedset_digest]}
+    # read JSON produced in bedsetStat.R (with plot paths)
+    with open(json_file_path, 'r', encoding='utf-8') as f:
+        bedset_summary_info = json.loads(f.read())
+    # update read data
+    bedset_summary_info.update(
+        {JSON_ID_KEY: args.bedset_name,
+         JSON_BEDSET_MEANS_KEY: means_dictionary,
+         JSON_BEDSET_SD_KEY: stdv_dictionary,
+         JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
+         JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
+         JSON_BEDSET_GD_STATS_KEY: [bedset_stats_path],
+         JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
+         JSON_BEDSET_PEP_KEY: [pep_tar_archive_path],
+         JSON_BEDSET_BED_IDS_KEY: [hit_ids],
+         JSON_MD5SUM_KEY: [bedset_digest]})
 
     # Insert bedset information into BEDSET_INDEX
-    print(hit_ids)
     try:
         bbc.insert_bedsets_data(data=bedset_summary_info, doc_id=bedset_digest)
     except ConflictError:
