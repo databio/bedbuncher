@@ -224,7 +224,7 @@ def main():
     # Create a folder to place pipeline logs if we want to run a pipeline in the bedset
     logs_name =  "bedbuncher_pipeline_logs"
     logs_dir = os.path.abspath(os.path.join(
-        bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_dir))
+        bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_name))
 
     if not os.path.exists(logs_dir):
         print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
