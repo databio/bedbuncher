@@ -97,7 +97,7 @@ def main():
 
     # check for presence of the output folder and create it if needed
     output_folder = os.path.abspath(os.path.join(
-        bbc[CFG_PATH_KEY][CFG_PIP_OUTPUT_KEY], bedset_digest))
+        bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], bedset_digest))
     if not os.path.exists(output_folder):
         print("Output directory does not exist. Creating: {}".format(output_folder))
         os.makedirs(output_folder)
@@ -115,18 +115,18 @@ def main():
     meta_list = [
             JSON_GENOME_KEY, JSON_PROTOCOL_KEY, JSON_CELL_TYPE_KEY, JSON_TISSUE_KEY, JSON_ANTIBODY_KEY, 
             JSON_TREATMENT_KEY, JSON_DATA_SOURCE_KEY, JSON_DESCRIPTION_KEY]
-    bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path", "file_name"] + meta_list)
+    bedset_pep_df = pd.DataFrame(columns=["sample_name", "output_file_path", "md5sum"] + meta_list)
     output_bed_path = "source1"
     for bedfiles in search_results:
         pep_metadata = {"sample_name": bedfiles[JSON_ID_KEY][0],
                         "output_file_path": output_bed_path,
-                        "file_name": bedfiles[JSON_MD5SUM_KEY][0]}
+                        "md5sum": bedfiles[JSON_MD5SUM_KEY][0]}
         for key in meta_list:
             if key in bedfiles.keys():
                 bed_file_meta = bedfiles[key][0]
                 pep_metadata.update({key: bed_file_meta})
             else:
-                pep_metadata.update({key: ""})
+                pep_metadata.update({key:""})
         bedset_pep_df = bedset_pep_df.append(pep_metadata, ignore_index=True)
 
     bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
@@ -220,6 +220,16 @@ def main():
         format(**cmd_vars)
     pm.run(cmd=command, target=json_file_path)
 
+    
+    # Create a folder to place pipeline logs if we want to run a pipeline in the bedset
+    logs_name =  "bedbuncher_pipeline_logs"
+    logs_dir = os.path.abspath(os.path.join(
+        bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_dir))
+
+    if not os.path.exists(logs_dir):
+        print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
+        os.makedirs(logs_dir)
+
     # create yaml config file for newly produced bedset
     # create an empty file to write the cfg to
     cfg_path = os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml")
@@ -228,7 +238,7 @@ def main():
     with config_attamp as y:
         y.metadata = {}
         y.metadata.sample_table = bedset_annotation_sheet
-        y.metadata.output_dir = "$HOME"
+        y.metadata.output_dir = logs_dir
         y.iGD_db = {}
         y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
         y.iGD_index = {}
