@@ -1,12 +1,13 @@
-metadata:
-  sample_table: bedset_query.csv
+sample_table: bedset_query.csv
+looper:
   output_dir: . 
   pipeline_interfaces: ../pipeline_interface.yaml 
 
-derived_attributes: [JSONquery_path, output_folder_path]
-data_sources:
-  source1: ../tests/{JSONquery_name}.json
-  source2: ../tests/BEDset_output/
- 
-constant_attributes:
-  protocol: "bedbuncher"
+sample_modifiers:
+  derive:
+    attributes: [JSONquery_path, output_folder_path]
+    sources:
+      source1: ../tests/{JSONquery_name}.json
+      source2: ../tests/BEDset_output/
+  append:
+    protocol: "bedbuncher"
