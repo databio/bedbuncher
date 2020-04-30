@@ -1,7 +1,5 @@
+pep_version: 2.0.0
 sample_table: bedset_query.csv
-looper:
-  output_dir: . 
-  pipeline_interfaces: ../pipeline_interface.yaml 
 
 sample_modifiers:
   derive:
@@ -10,4 +8,7 @@ sample_modifiers:
       source1: ../tests/{JSONquery_name}.json
       source2: ../tests/BEDset_output/
   append:
-    protocol: "bedbuncher"
+    pipeline_interfaces: ../pipeline_interface_new.yaml
+
+looper:
+  output_dir: .
