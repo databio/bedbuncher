@@ -3,5 +3,5 @@ pipeline_name: BEDBUNCHER
 sample_pipeline:
   path: pipelines/bedbuncher.py
   command_template: >
-    {pipeline.path} --JSON-query-path {sample.JSONquery_path} --bedset-name {sample.bedset_name} 
+    {pipeline.path} --JSON-query-path {sample.JSONquery_path} --bedset-name {sample.bedset_name}  -O {looper.output_folder}
     {% if sample.bbconfig_path is defined %} --bedbase-config {sample.bbconfig_path} {% endif %}
