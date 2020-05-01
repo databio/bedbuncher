@@ -38,7 +38,7 @@ args = parser.parse_args()
 
 # SET OUTPUT FOLDER
 # use output parent argument from looper to place pipeline stats (live separately from bedset results)
-out_parent = args.output_parent
+out_parent = args.output_folder
 
 bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bedbase_config))
 
@@ -220,9 +220,8 @@ def main():
         format(**cmd_vars)
     pm.run(cmd=command, target=json_file_path)
 
-    
     # Create a folder to place pipeline logs if we want to run a pipeline in the bedset
-    logs_name =  "bedbuncher_pipeline_logs"
+    logs_name = "bedbuncher_pipeline_logs"
     logs_dir = os.path.abspath(os.path.join(
         bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_name))
 
