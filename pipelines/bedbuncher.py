@@ -235,19 +235,23 @@ def main():
     open(cfg_path, 'a').close()
     config_attamp = yacman.YacAttMap(filepath=cfg_path)
     with config_attamp as y:
-        y.metadata = {}
-        y.metadata.sample_table = bedset_annotation_sheet
-        y.metadata.output_dir = logs_dir
+        y.pep_version = {}
+        y.pep_version = "2.0.0"
+        y.sample_table = {}
+        y.sample_table = bedset_annotation_sheet
+        y.looper = {}
+        y.looper.output_dir = logs_dir 
         y.iGD_db = {}
         y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
         y.iGD_index = {}
         y.iGD_index = os.path.join(igd_folder_name, args.bedset_name + "_index.tsv")
-        y.constant_attributes = {}
-        y.constant_attributes.output_file_path = "source1"
-        y.derived_attributes = {}
-        y.derived_attributes = ["output_file_path"]
-        y.data_sources = {}
-        y.data_sources = {"source1": "{sample_name}.bed.gz"}
+        y.sample_modifiers = {}
+        y.sample_modifiers.append = {}
+        y.sample_modifiers.append.output_file_path = "source1"
+        y.sample_modifiers.derive = {}
+        y.sample_modifiers.derive.attributes = ["output_file_path"] 
+        y.sample_modifiers.derive.sources = {}
+        y.sample_modifiers.derive.sources = {"source1": "{sample_name}.bed.gz"}
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
