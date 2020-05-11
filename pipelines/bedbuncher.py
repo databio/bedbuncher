@@ -36,11 +36,19 @@ parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
 
 args = parser.parse_args()
 
-# SET OUTPUT FOLDER
-# use output parent argument from looper to place pipeline stats (live separately from bedset results)
-out_parent = args.output_folder
-
+# Initialize bbc object
 bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bedbase_config))
+
+# SET OUTPUT FOLDER
+# Create a folder to place pipeline logs 
+logs_name = "bedbuncher_pipeline_logs"
+logs_dir = os.path.abspath(os.path.join(
+    bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_name))
+
+if not os.path.exists(logs_dir):
+    print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
+    os.makedirs(logs_dir)
+
 
 
 def JSON_to_dict(file_name):
@@ -79,7 +87,7 @@ def get_bedset_digest(sr):
 
 
 def main():
-    pm = pypiper.PipelineManager(name="bedbuncher", outfolder=out_parent, args=args)
+    pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
 
     # Establish Elasticsearch connection and check status using bbconf
     bbc.establish_elasticsearch_connection()
@@ -220,14 +228,6 @@ def main():
         format(**cmd_vars)
     pm.run(cmd=command, target=json_file_path)
 
-    # Create a folder to place pipeline logs if we want to run a pipeline in the bedset
-    logs_name = "bedbuncher_pipeline_logs"
-    logs_dir = os.path.abspath(os.path.join(
-        bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_name))
-
-    if not os.path.exists(logs_dir):
-        print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
-        os.makedirs(logs_dir)
 
     # create yaml config file for newly produced bedset
     # create an empty file to write the cfg to
