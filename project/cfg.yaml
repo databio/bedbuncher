@@ -8,7 +8,8 @@ sample_modifiers:
       source1: ../tests/{JSONquery_name}.json
       source2: ../tests/BEDset_output/
   append:
-    pipeline_interfaces: ../pipeline_interface_new.yaml
+    pipeline_interfaces: ../pipeline_interface.yaml
 
 looper:
-  output_dir: .
+  run:
+    output_dir: $HOME/testing/bedstat
