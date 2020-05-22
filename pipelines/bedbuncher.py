@@ -240,7 +240,8 @@ def main():
         y.sample_table = {}
         y.sample_table = bedset_annotation_sheet
         y.looper = {}
-        y.looper.output_dir = logs_dir 
+        y.looper.run = {}
+        y.looper.run.output_dir = logs_dir 
         y.iGD_db = {}
         y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
         y.iGD_index = {}
