@@ -30,8 +30,7 @@ parser.add_argument("-b", "--bedbase-config", type=str, required=False, default=
 parser.add_argument("-n", "--bedset-name", help="name assigned to queried bedset", type=str)
 
 # add pypiper args to make pipeline looper compatible
-parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
-                                  required=["--JSON-query-path", "--bedset_name"])
+parser = pypiper.add_pypiper_args(parser, groups=["pypiper"], required=["--JSON-query-path", "--bedset_name"])
 
 
 args = parser.parse_args()
