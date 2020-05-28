@@ -1,19 +1,6 @@
-protocol_mapping:
-  bedbuncher: bedbuncher
-
-pipelines:
-  bedbuncher:
-    name: bedbuncher
-    path: pipelines/bedbuncher.py
-    looper_args: True
-    arguments:
-      "--JSON-query-path": JSONquery_path
-      "--bedset-name": bedset_name
-    optional_arguments:
-      "--bedbase-config": bbconfig_path
-    resources:
-      default: 
-        file_size: "0"
-        cores: "1"
-        mem: "12000"
-        time: "00-18:00:00"
+pipeline_name: BEDBUNCHER
+pipeline_type: sample
+path: pipelines/bedbuncher.py
+input_schema: http://schema.databio.org/pipelines/bedbuncher.yaml
+command_template: >
+  {pipeline.path} --JSON-query-path {sample.JSONquery_path} --bedset-name {sample.bedset_name} {% if sample.bedbase_config is defined %} --bedbase-config {sample.bedbase_config} {% endif %}

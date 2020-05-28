@@ -30,17 +30,24 @@ parser.add_argument("-b", "--bedbase-config", type=str, required=False, default=
 parser.add_argument("-n", "--bedset-name", help="name assigned to queried bedset", type=str)
 
 # add pypiper args to make pipeline looper compatible
-parser = pypiper.add_pypiper_args(parser, groups=["pypiper", "looper"],
-                                  required=["--JSON-query-path", "--bedset_name"])
+parser = pypiper.add_pypiper_args(parser, groups=["pypiper"], required=["--JSON-query-path", "--bedset_name"])
 
 
 args = parser.parse_args()
 
-# SET OUTPUT FOLDER
-# use output parent argument from looper to place pipeline stats (live separately from bedset results)
-out_parent = args.output_parent
-
+# Initialize bbc object
 bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bedbase_config))
+
+# SET OUTPUT FOLDER
+# Create a folder to place pipeline logs 
+logs_name = "bedbuncher_pipeline_logs"
+logs_dir = os.path.abspath(os.path.join(
+    bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_name))
+
+if not os.path.exists(logs_dir):
+    print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
+    os.makedirs(logs_dir)
+
 
 
 def JSON_to_dict(file_name):
@@ -79,7 +86,7 @@ def get_bedset_digest(sr):
 
 
 def main():
-    pm = pypiper.PipelineManager(name="bedbuncher", outfolder=out_parent, args=args)
+    pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
 
     # Establish Elasticsearch connection and check status using bbconf
     bbc.establish_elasticsearch_connection()
@@ -220,15 +227,6 @@ def main():
         format(**cmd_vars)
     pm.run(cmd=command, target=json_file_path)
 
-    
-    # Create a folder to place pipeline logs if we want to run a pipeline in the bedset
-    logs_name =  "bedbuncher_pipeline_logs"
-    logs_dir = os.path.abspath(os.path.join(
-        bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], logs_name))
-
-    if not os.path.exists(logs_dir):
-        print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
-        os.makedirs(logs_dir)
 
     # create yaml config file for newly produced bedset
     # create an empty file to write the cfg to
@@ -236,19 +234,23 @@ def main():
     open(cfg_path, 'a').close()
     config_attamp = yacman.YacAttMap(filepath=cfg_path)
     with config_attamp as y:
-        y.metadata = {}
-        y.metadata.sample_table = bedset_annotation_sheet
-        y.metadata.output_dir = logs_dir
+        y.pep_version = {}
+        y.pep_version = "2.0.0"
+        y.sample_table = {}
+        y.sample_table = bedset_annotation_sheet
+        y.looper = {}
+        y.looper.output_dir = logs_dir 
         y.iGD_db = {}
         y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
         y.iGD_index = {}
         y.iGD_index = os.path.join(igd_folder_name, args.bedset_name + "_index.tsv")
-        y.constant_attributes = {}
-        y.constant_attributes.output_file_path = "source1"
-        y.derived_attributes = {}
-        y.derived_attributes = ["output_file_path"]
-        y.data_sources = {}
-        y.data_sources = {"source1": "{sample_name}.bed.gz"}
+        y.sample_modifiers = {}
+        y.sample_modifiers.append = {}
+        y.sample_modifiers.append.output_file_path = "source1"
+        y.sample_modifiers.derive = {}
+        y.sample_modifiers.derive.attributes = ["output_file_path"] 
+        y.sample_modifiers.derive.sources = {}
+        y.sample_modifiers.derive.sources = {"source1": "{sample_name}.bed.gz"}
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
