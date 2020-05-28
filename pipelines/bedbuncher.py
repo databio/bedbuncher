@@ -5,7 +5,7 @@ bedset paths, statistics and PEP generating pipeline
 
 __author__ = ["Jose Verdezoto", "Michal Stolarczyk"]
 __email__ = "jev4xy@virginia.edu"
-__version__ = "0.0.1"
+__version__ = "0.0.2-dev"
 
 import os
 import sys
