@@ -7,6 +7,7 @@ __author__ = ["Jose Verdezoto", "Michal Stolarczyk"]
 __email__ = "jev4xy@virginia.edu"
 __version__ = "0.0.1"
 
+import re
 import os
 import sys
 import pandas as pd
@@ -127,7 +128,8 @@ def main():
     for bedfiles in search_results:
         pep_metadata = {"sample_name": bedfiles[JSON_ID_KEY][0],
                         "output_file_path": output_bed_path,
-                        "md5sum": bedfiles[JSON_MD5SUM_KEY][0]}
+                        "md5sum": bedfiles[JSON_MD5SUM_KEY][0],
+                        "file_format": re.match('.*(.bed.*)$', bedfiles[BEDFILE_PATH_KEY][0]).group(1)}
         for key in meta_list:
             if key in bedfiles.keys():
                 bed_file_meta = bedfiles[key][0]
@@ -250,7 +252,7 @@ def main():
         y.sample_modifiers.derive = {}
         y.sample_modifiers.derive.attributes = ["output_file_path"] 
         y.sample_modifiers.derive.sources = {}
-        y.sample_modifiers.derive.sources = {"source1": "{sample_name}.bed.gz"}
+        y.sample_modifiers.derive.sources = {"source1": "{sample_name}" + "{file_format}"}
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(os.path.join(output_folder, args.bedset_name + '.tar'))
