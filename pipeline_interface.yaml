@@ -1,6 +1,8 @@
 pipeline_name: BEDBUNCHER
 pipeline_type: sample
 path: pipelines/bedbuncher.py
-input_schema: http://schema.databio.org/pipelines/bedbuncher.yaml
+# input_schema: http://schema.databio.org/pipelines/bedbuncher.yaml
 command_template: >
-  {pipeline.path} --JSON-query-path {sample.JSONquery_path} --bedset-name {sample.bedset_name} {% if sample.bedbase_config is defined %} --bedbase-config {sample.bedbase_config} {% endif %}
+  {pipeline.path} --query {sample.query} --bedset-name {sample.bedset_name}
+  {% if sample.bedbase_config is defined %} --bedbase-config {sample.bedbase_config} {% endif %}
+  {% if sample.json is defined %} --json {sample.json} {% endif %}

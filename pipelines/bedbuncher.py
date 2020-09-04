@@ -101,7 +101,8 @@ def main():
     if nhits < 1:
         raise BedBaseConfError(f"No BED files match the query: {args.query}")
     pm.info(f"{nhits} BED files match the query")
-    hit_ids = {i[JSON_NAME_KEY]: i[JSON_MD5SUM_KEY] for i in search_results}
+    hit_names = {i[JSON_NAME_KEY]: i[JSON_MD5SUM_KEY] for i in search_results}
+    hit_ids = [i["id"] for i in search_results]
     bedset_digest = get_bedset_digest(search_results)
     pm.info(f"bedset digest: {bedset_digest}")
 
@@ -278,18 +279,27 @@ def main():
         {JSON_NAME_KEY: args.bedset_name,
          JSON_BEDSET_MEANS_KEY: means_dictionary,
          JSON_BEDSET_SD_KEY: stdv_dictionary,
-         JSON_BEDSET_TAR_PATH_KEY: [tar_archive_file],
-         JSON_BEDSET_BEDFILES_GD_STATS_KEY: [bedfiles_stats_path],
-         JSON_BEDSET_GD_STATS_KEY: [bedset_stats_path],
-         JSON_BEDSET_IGD_DB_KEY: [igd_tar_archive_path],
-         JSON_BEDSET_PEP_KEY: [pep_tar_archive_path],
-         JSON_BEDSET_BED_IDS_KEY: [hit_ids],
-         JSON_MD5SUM_KEY: [bedset_digest]})
+         JSON_BEDSET_TAR_PATH_KEY: tar_archive_file,
+         JSON_BEDSET_BEDFILES_GD_STATS_KEY: bedfiles_stats_path,
+         JSON_BEDSET_GD_STATS_KEY: bedset_stats_path,
+         JSON_BEDSET_IGD_DB_KEY: igd_tar_archive_path,
+         JSON_BEDSET_PEP_KEY: pep_tar_archive_path,
+         JSON_BEDSET_BED_IDS_KEY: hit_names,
+         JSON_MD5SUM_KEY: bedset_digest})
 
-    # Insert bedset information into BEDSET_INDEX
-    try:
-        bbc.insert_bedset_data(values=bedset_summary_info)
-    pm.info(f"'{args.bedset_name}' summary info was successfully inserted into {BEDSET_TABLE}")
+    # Insert bedset information into bedsets table
+    if not bbc.check_bedsets_table_exists():
+        bbc.create_bedsets_table(columns=BEDSET_COLUMNS)
+    data = {k.lower(): v[0] if isinstance(v, list) else v for k, v in bedset_summary_info.items()}
+    bedset_id = bbc.insert_bedset_data(values=data)
+
+    # Insert relationship information into bedset_bedfiles table
+    if not bbc.check_bedset_bedfiles_table_exists():
+        bbc.create_bedset_bedfiles_table()
+    for hit_id in hit_ids:
+        vals = {REL_BED_ID_KEY: hit_id, REL_BEDSET_ID_KEY: bedset_id}
+        bbc.insert_bedset_bedfiles_data(values=vals)
+
     pm.stop_pipeline()
 
 
