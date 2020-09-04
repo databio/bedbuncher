@@ -2,7 +2,7 @@
 Pipeline designed to create **bedsets** (sets of BED files) that will be retrieved from bedbase.
 
 Examples of bedsets:
-- BED files with regions width > 1000bp (query: `regions_no>1000`)
+- BED files with regions count greater than 1000 (query: `regions_no>1000`)
 - BED files produced in ChiP-seq experiments
 
 ## To run the pipeline 
