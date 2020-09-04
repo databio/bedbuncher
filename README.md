@@ -16,14 +16,16 @@ pip install -r requirements/requirements.txt --user
 - `iGD` -- a command line executable, which builds a database that integrates genomic sets from one or more data sources and minimizes the search space for a specific query. Visit the [`iGD` repository](https://github.com/databio/iGD) for more information and installation details.
 
 4. Run a [PostgreSQL](https://www.postgresql.org/) database instance
-For example, to run an instnace in a Docker container:
+
+For example, to run an instnace in a Docker container use:
 ```
 docker run -d --name bedbase-postgres -p 5432:5432 -e POSTGRES_PASSWORD=bedbasepassword -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -v postgres-data:/var/lib/postgresql/data postgres
 ```
+The DB login credentials need to match what's specified in the bedbase configuration file.
 
 5. Submit the pipeline with [`looper`](https://looper.readthedocs.io/en/latest/)
 
-**Input:** A [PEP](http://pep.databio.org/en/latest/) with one sample per bedset. Each sample needs to an attribute specifying a query that will restrict the database search to create a bedset.
+**Input:** A [PEP](http://pep.databio.org/en/latest/) with one sample per bedset. Each sample needs to have an attribute specifying a query that will restrict the database search to create a bedset.
 
 ```
 looper run project/cfg.yaml
