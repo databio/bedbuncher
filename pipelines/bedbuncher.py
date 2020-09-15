@@ -29,10 +29,6 @@ parser = ArgumentParser(
 parser.add_argument("-q", "--query",
                     help="condition to restrict bedfiles table select with",
                     type=str)
-parser.add_argument("-j", "--json",
-                    help="the JSONB database column the provided query "
-                         "should be applied to",
-                    type=str, required=False, default=None)
 parser.add_argument("-b", "--bedbase-config",
                     type=str, required=False, default=None,
                     help=f"path to the bedbase configuration file. "
@@ -95,8 +91,7 @@ def get_bedset_digest(sr):
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
     # Use bbconf method to look for files in the database
-    search_results = bbc.select(
-        condition=args.query, json=args.json, table_name=BED_TABLE)
+    search_results = bbc.select(condition=args.query, table_name=BED_TABLE)
     nhits = len(search_results)
     if nhits < 1:
         raise BedBaseConfError(f"No BED files match the query: {args.query}")
