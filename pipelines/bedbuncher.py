@@ -18,6 +18,7 @@ from argparse import ArgumentParser
 from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
 from hashlib import md5
+from psycopg2.extras import Json
 
 import bbconf
 import pypiper
@@ -285,7 +286,13 @@ def main():
     # Insert bedset information into bedsets table
     if not bbc.check_bedsets_table_exists():
         bbc.create_bedsets_table(columns=BEDSET_COLUMNS)
-    data = {k.lower(): v[0] if (isinstance(v, list) and k != JSON_PLOTS_KEY)
+    # convert plots (a list of dicts) to the postgres json object since in the
+    # next line only the first element is selected from every list.
+    bedset_summary_info[JSON_PLOTS_KEY] = \
+        Json(bedset_summary_info[JSON_PLOTS_KEY])
+    # select only first element of every list due to JSON produced by R putting
+    # every value into a list
+    data = {k.lower(): v[0] if (isinstance(v, list))
             else v for k, v in bedset_summary_info.items()}
     bedset_id = bbc.insert_bedset_data(values=data)
 
