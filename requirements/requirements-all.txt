@@ -1,4 +1,4 @@
-loopercli>=0.1.2
+looper>=0.1.2
 piper>=0.12.1
 peppy>=0.22.3
 # bbconf>=0.1.0
