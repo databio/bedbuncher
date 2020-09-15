@@ -290,7 +290,8 @@ def main():
     # Insert bedset information into bedsets table
     if not bbc.check_bedsets_table_exists():
         bbc.create_bedsets_table(columns=BEDSET_COLUMNS)
-    data = {k.lower(): v[0] if isinstance(v, list) else v for k, v in bedset_summary_info.items()}
+    data = {k.lower(): v[0] if (isinstance(v, list) and k != JSON_PLOTS_KEY)
+            else v for k, v in bedset_summary_info.items()}
     bedset_id = bbc.insert_bedset_data(values=data)
 
     # Insert relationship information into bedset_bedfiles table
