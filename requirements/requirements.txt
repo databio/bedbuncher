@@ -1,4 +1,0 @@
-loopercli
-piper==0.12.1
-peppy==0.22.3
-bbconf>=0.0.1
