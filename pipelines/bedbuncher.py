@@ -47,8 +47,8 @@ args = parser.parse_args()
 bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bedbase_config))
 
 # Create a folder to place pipeline logs
-logs_dir = os.path.abspath(os.path.join(
-    bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], "bedbuncher_pipeline_logs"))
+logs_dir = os.path.abspath(
+    os.path.join(bbc.get_bedbuncher_output_path(), "bedbuncher_pipeline_logs"))
 if not os.path.exists(logs_dir):
     print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
     os.makedirs(logs_dir)
@@ -97,7 +97,7 @@ def mk_rel(pth):
     :param pth:
     :return:
     """
-    return os.path.relpath(pth, bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY])
+    return os.path.relpath(pth, bbc.get_bedbuncher_output_path())
 
 
 def main():
@@ -114,8 +114,8 @@ def main():
     pm.info(f"bedset digest: {bedset_digest}")
 
     # check for presence of the output folder and create it if needed
-    output_folder = os.path.abspath(os.path.join(
-        bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], bedset_digest))
+    output_folder = os.path.abspath(
+        os.path.join(bbc.get_bedbuncher_output_path(), bedset_digest))
     if not os.path.exists(output_folder):
         pm.info(f"Output directory does not exist. Creating: {output_folder}")
         os.makedirs(output_folder)
@@ -265,8 +265,8 @@ def main():
     for files in search_results:
         bedfile_path = files[BEDFILE_PATH_KEY]
         if not os.path.isabs(bedfile_path):
-            bedfile_path = os.path.realpath(os.path.join(
-                bbc[CFG_PATH_KEY][CFG_BEDSTAT_OUTPUT_KEY], bedfile_path))
+            bedfile_path = os.path.realpath(
+                os.path.join(bbc.get_bedbuncher_output_path(), bedfile_path))
         tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path),
                         recursive=False, filter=None)
     tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
