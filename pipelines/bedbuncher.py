@@ -89,13 +89,24 @@ def get_bedset_digest(sr):
     return m.hexdigest()
 
 
+def mk_rel(pth):
+    """
+    Make path relative to the output directory in order to make the paths
+    portable in the database
+
+    :param pth:
+    :return:
+    """
+    return os.path.relpath(pth, bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY])
+
+
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
     # Use bbconf method to look for files in the database
     search_results = bbc.select(condition=args.query, table_name=BED_TABLE)
     nhits = len(search_results)
-    if nhits < 1:
-        raise BedBaseConfError(f"No BED files match the query: {args.query}")
+    if nhits < 2:
+        raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}")
     pm.info(f"{nhits} BED files match the query")
     hit_names = {i[JSON_NAME_KEY]: i[JSON_MD5SUM_KEY] for i in search_results}
     hit_ids = [i["id"] for i in search_results]
@@ -106,15 +117,14 @@ def main():
     output_folder = os.path.abspath(os.path.join(
         bbc[CFG_PATH_KEY][CFG_BEDBUNCHER_OUTPUT_KEY], bedset_digest))
     if not os.path.exists(output_folder):
-        pm.info("Output directory does not exist. Creating: {}".format(output_folder))
+        pm.info(f"Output directory does not exist. Creating: {output_folder}")
         os.makedirs(output_folder)
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
     # .bed.gz files produce basic csv annotation sheet based on IDs found in
     # the bbc search
-    pm.info("Creating PEP annotation sheet and config.yaml for {}".
-          format(args.bedset_name))
+    pm.info(f"Creating PEP annotation sheet and config.yaml for {args.bedset_name}")
     pep_folder_path = os.path.join(output_folder, args.bedset_name + "_PEP")
     if not os.path.exists(pep_folder_path):
         os.makedirs(pep_folder_path)
@@ -254,6 +264,9 @@ def main():
     pm.info(f"Creating TAR archive: {tar_archive_file}")
     for files in search_results:
         bedfile_path = files[BEDFILE_PATH_KEY]
+        if not os.path.isabs(bedfile_path):
+            bedfile_path = os.path.realpath(os.path.join(
+                bbc[CFG_PATH_KEY][CFG_BEDSTAT_OUTPUT_KEY], bedfile_path))
         tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path),
                         recursive=False, filter=None)
     tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
@@ -275,11 +288,11 @@ def main():
         {JSON_NAME_KEY: args.bedset_name,
          JSON_BEDSET_MEANS_KEY: means_dictionary,
          JSON_BEDSET_SD_KEY: stdv_dictionary,
-         JSON_BEDSET_TAR_PATH_KEY: tar_archive_file,
-         JSON_BEDSET_BEDFILES_GD_STATS_KEY: bedfiles_stats_path,
-         JSON_BEDSET_GD_STATS_KEY: bedset_stats_path,
-         JSON_BEDSET_IGD_DB_KEY: igd_tar_archive_path,
-         JSON_BEDSET_PEP_KEY: pep_tar_archive_path,
+         JSON_BEDSET_TAR_PATH_KEY: mk_rel(tar_archive_file),
+         JSON_BEDSET_BEDFILES_GD_STATS_KEY: mk_rel(bedfiles_stats_path),
+         JSON_BEDSET_GD_STATS_KEY: mk_rel(bedset_stats_path),
+         JSON_BEDSET_IGD_DB_KEY: mk_rel(igd_tar_archive_path),
+         JSON_BEDSET_PEP_KEY: mk_rel(pep_tar_archive_path),
          JSON_BEDSET_BED_IDS_KEY: hit_names,
          JSON_MD5SUM_KEY: bedset_digest})
 
