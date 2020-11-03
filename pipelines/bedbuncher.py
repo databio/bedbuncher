@@ -216,7 +216,7 @@ def main():
 
     # Command templates for IGD database construction
     cmd = f"igd create {txt_bed_path} {igd_folder_path} {args.bedset_name} -f"
-    pm.run(cmd, target=os.path.join(igd_folder_path + ".tar.gz"))
+    pm.run(cmd, target=os.path.join(igd_folder_path + ".tar.gz"), nofail=True)
 
     # TAR the iGD database folder
     igd_tar_archive_path = os.path.abspath(os.path.join(igd_folder_path + '.tar.gz'))
