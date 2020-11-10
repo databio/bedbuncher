@@ -28,7 +28,10 @@ parser = ArgumentParser(
     description="A pipeline to produce sets of bed files (bedsets)")
 
 parser.add_argument("-q", "--query",
-                    help="condition to restrict bedfiles table select with",
+                    help="condition string to restrict bedfiles table select with",
+                    type=str)
+parser.add_argument("-v", "--query-val",
+                    help="condition values to populate condition with",
                     type=str)
 parser.add_argument("-b", "--bedbase-config",
                     type=str, required=False, default=None,
@@ -103,7 +106,7 @@ def mk_rel(pth):
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
     # Use bbconf method to look for files in the database
-    search_results = bbc.select(condition=args.query, table_name=BED_TABLE)
+    search_results = bbc.select(condition=args.query, condition_val=args.query_val, table_name=BED_TABLE)
     nhits = len(search_results)
     if nhits < 2:
         raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}")
@@ -254,7 +257,7 @@ def main():
         y.sample_modifiers.derive = {}
         y.sample_modifiers.derive.attributes = ["output_file_path"] 
         y.sample_modifiers.derive.sources = {}
-        y.sample_modifiers.derive.sources = {"source1": "{sample_name}{file_format}"}
+        y.sample_modifiers.derive.sources = {"source1": "'{sample_name}{file_format}'"}
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(
@@ -293,7 +296,6 @@ def main():
          JSON_BEDSET_GD_STATS_KEY: mk_rel(bedset_stats_path),
          JSON_BEDSET_IGD_DB_KEY: mk_rel(igd_tar_archive_path),
          JSON_BEDSET_PEP_KEY: mk_rel(pep_tar_archive_path),
-         JSON_BEDSET_BED_IDS_KEY: hit_names,
          JSON_MD5SUM_KEY: bedset_digest})
 
     # Insert bedset information into bedsets table
