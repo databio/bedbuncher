@@ -106,7 +106,7 @@ def mk_rel(pth):
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
     # Use bbconf method to look for files in the database
-    search_results = bbc.select(condition=args.query, condition_val=args.query_val, table_name=BED_TABLE)
+    search_results = bbc.select(condition=args.query, condition_val=[args.query_val], table_name=BED_TABLE)
     nhits = len(search_results)
     if nhits < 2:
         raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}")
