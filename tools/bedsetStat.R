@@ -124,13 +124,15 @@ doItAll <- function(opt) {
         }
     }
     plots = data.frame(stringsAsFactors=F)
-    plotId = "regionCommonality"
+    plotId = "region_commonality"
     plotBoth(paste0(opt$outputfolder, "/", opt$id, "_", plotId), 
              plotRegionCommonality(calcRegionCommonality(grl)))
     newPlot = data.frame("name"=plotId, 
-                         "caption"="BED region commonality in BED set")
+                         "title"="BED region commonality in BED set",
+                         "path"=paste0(opt$id, "_", plotId, ".pdf"),
+                         "thumbnail_path"=paste0(opt$id, "_", plotId, ".png"))
     plots = rbind(plots, newPlot)
-    # Note: names of the list elements MUST match what's defined in: https://github.com/databio/bbconf/blob/master/bbconf/const.py
+    # Note: names of the list elements MUST match what's defined in: https://github.com/databio/bbconf/blob/master/bbconf/schemas/bedsets_schema.yaml
     bedsetmeta = list(
         plots=plots
     )

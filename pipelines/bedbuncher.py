@@ -17,6 +17,8 @@ import tarfile
 from argparse import ArgumentParser
 from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
+# TODO: update
+from bbconf.bbconf_new import BedBaseConf
 from hashlib import md5
 from psycopg2.extras import Json
 
@@ -47,7 +49,7 @@ parser = pypiper.add_pypiper_args(parser,
 args = parser.parse_args()
 
 # Initialize bbc object
-bbc = bbconf.BedBaseConf(filepath=bbconf.get_bedbase_cfg(args.bedbase_config))
+bbc = BedBaseConf(config_path=args.bedbase_config, database_only=True)
 
 # Create a folder to place pipeline logs
 logs_dir = os.path.abspath(
@@ -92,26 +94,26 @@ def get_bedset_digest(sr):
     return m.hexdigest()
 
 
-def mk_rel(pth):
+def mk_file_type(pth, title):
     """
-    Make path relative to the output directory in order to make the paths
-    portable in the database
 
     :param pth:
+    :param title:
     :return:
     """
-    return os.path.relpath(pth, bbc.get_bedbuncher_output_path())
+    return {"path": os.path.relpath(pth, bbc.get_bedbuncher_output_path()),
+            "title": title}
 
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
     # Use bbconf method to look for files in the database
-    search_results = bbc.select(condition=args.query, condition_val=[args.query_val], table_name=BED_TABLE)
+    search_results = bbc.bed.select(
+        condition=args.query, condition_val=[args.query_val])
     nhits = len(search_results)
     if nhits < 2:
         raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}")
     pm.info(f"{nhits} BED files match the query")
-    hit_names = {i[JSON_NAME_KEY]: i[JSON_MD5SUM_KEY] for i in search_results}
     hit_ids = [i["id"] for i in search_results]
     bedset_digest = get_bedset_digest(search_results)
     pm.info(f"bedset digest: {bedset_digest}")
@@ -182,9 +184,12 @@ def main():
     pm.info("Calculating bedset statistics")
     bedfiles_means = bedstats_df.mean(axis=0)
     bedfiles_stdv = bedstats_df.std(axis=0)
+    print(f"bedstats_df: {bedstats_df}")
+    print(f"bedfiles_stdv: {bedfiles_stdv}")
     means_dictionary = dict(bedfiles_means)
     stdv_dictionary = dict(bedfiles_stdv)
-    # Save bedstats_df matrix as csv file into the user defined output_folder
+    print(f"stdv_dictionary: {stdv_dictionary}")
+    # Save bedstats_df matrix as csv file into the user-defined output_folder
     bedfiles_stats_path = os.path.join(output_folder, args.bedset_name + '_bedstat.csv')
     pm.info(f"Saving bedfiles statistics to: {bedfiles_stats_path}")
     bedstats_df.to_csv(bedfiles_stats_path, index=False)
@@ -286,38 +291,37 @@ def main():
     # read JSON produced in bedsetStat.R (with plot paths)
     with open(json_file_path, 'r', encoding='utf-8') as f:
         bedset_summary_info = json.loads(f.read())
-    # update read data
+
+    for plot in bedset_summary_info[JSON_PLOTS_KEY]:
+        plot_id = plot["name"]
+        del plot["name"]
+        bedset_summary_info.update({plot_id: plot})
+    del bedset_summary_info[JSON_PLOTS_KEY]
+
     bedset_summary_info.update(
         {JSON_NAME_KEY: args.bedset_name,
          JSON_BEDSET_MEANS_KEY: means_dictionary,
          JSON_BEDSET_SD_KEY: stdv_dictionary,
-         JSON_BEDSET_TAR_PATH_KEY: mk_rel(tar_archive_file),
-         JSON_BEDSET_BEDFILES_GD_STATS_KEY: mk_rel(bedfiles_stats_path),
-         JSON_BEDSET_GD_STATS_KEY: mk_rel(bedset_stats_path),
-         JSON_BEDSET_IGD_DB_KEY: mk_rel(igd_tar_archive_path),
-         JSON_BEDSET_PEP_KEY: mk_rel(pep_tar_archive_path),
+         JSON_BEDSET_TAR_PATH_KEY: mk_file_type(
+             tar_archive_file, "TAR archive with BED files in this BED set"),
+         JSON_BEDSET_BEDFILES_GD_STATS_KEY: mk_file_type(
+             bedfiles_stats_path, "Statistics of the BED files in this BED set"),
+         JSON_BEDSET_GD_STATS_KEY: mk_file_type(
+             bedset_stats_path, "Means and standard deviations of the BED files in this BED set"),
+         JSON_BEDSET_IGD_DB_KEY: mk_file_type(
+             igd_tar_archive_path, "iGD database"),
+         JSON_BEDSET_PEP_KEY: mk_file_type(
+             pep_tar_archive_path, "PEP including BED files in this BED set"),
          JSON_MD5SUM_KEY: bedset_digest})
 
-    # Insert bedset information into bedsets table
-    if not bbc.check_bedsets_table_exists():
-        bbc.create_bedsets_table(columns=BEDSET_COLUMNS)
-    # convert plots (a list of dicts) to the postgres json object since in the
-    # next line only the first element is selected from every list.
-    bedset_summary_info[JSON_PLOTS_KEY] = \
-        Json(bedset_summary_info[JSON_PLOTS_KEY])
     # select only first element of every list due to JSON produced by R putting
     # every value into a list
     data = {k.lower(): v[0] if (isinstance(v, list))
             else v for k, v in bedset_summary_info.items()}
-    bedset_id = bbc.insert_bedset_data(values=data)
-
-    # Insert relationship information into bedset_bedfiles table
-    if not bbc.check_bedset_bedfiles_table_exists():
-        bbc.create_bedset_bedfiles_table()
+    bedset_id = bbc.bedset.report(
+        record_identifier=bedset_digest, values=data, return_id=True)
     for hit_id in hit_ids:
-        vals = {REL_BED_ID_KEY: hit_id, REL_BEDSET_ID_KEY: bedset_id}
-        bbc.insert_bedset_bedfiles_data(values=vals)
-
+        bbc.report_bedfile_for_bedset(bedset_id=bedset_id, bedfile_id=hit_id)
     pm.stop_pipeline()
 
 
