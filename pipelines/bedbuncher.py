@@ -17,8 +17,7 @@ import tarfile
 from argparse import ArgumentParser
 from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
-# TODO: update
-from bbconf.bbconf_new import BedBaseConf
+from bbconf import BedBaseConf
 from hashlib import md5
 from psycopg2.extras import Json
 
@@ -90,7 +89,7 @@ def get_bedset_digest(sr):
     :return str: bedset digest
     """
     m = md5()
-    m.update(";".join(sorted([f[JSON_MD5SUM_KEY] for f in sr])).encode('utf-8'))
+    m.update(";".join(sorted([f["md5sum"] for f in sr])).encode('utf-8'))
     return m.hexdigest()
 
 
@@ -136,18 +135,18 @@ def main():
     
     # define column names for annotation sheet based on LOLA requirements
     meta_list = [
-        JSON_GENOME_KEY, JSON_PROTOCOL_KEY, JSON_CELL_TYPE_KEY,
-        JSON_TISSUE_KEY, JSON_ANTIBODY_KEY, JSON_TREATMENT_KEY,
-        JSON_DATA_SOURCE_KEY, JSON_DESCRIPTION_KEY
+        "genome", "protocol", "cell_type",
+        "tissue", "antibody", "treatment",
+        "data_source", "description"
     ]
     bedset_pep_df = pd.DataFrame(
         columns=["sample_name", "output_file_path", "md5sum"] + meta_list)
     output_bed_path = "source1"
     for bedfiles in search_results:
-        file_fmt = re.match('.*(.bed.*)$', bedfiles[BEDFILE_PATH_KEY]).group(1)
-        pep_metadata = {"sample_name": bedfiles[JSON_NAME_KEY],
+        file_fmt = re.match('.*(.bed.*)$', bedfiles["bedfile_path"]).group(1)
+        pep_metadata = {"sample_name": bedfiles["name"],
                         "output_file_path": output_bed_path,
-                        "md5sum": bedfiles[JSON_MD5SUM_KEY],
+                        "md5sum": bedfiles["md5sum"],
                         "file_format": file_fmt}
         for key in meta_list:
             if key in bedfiles.keys():
@@ -161,17 +160,18 @@ def main():
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
+    numeric_results = [k for k, v in bbc.bed.schema.items()
+                       if v["type"] == "number"]
     # Create df with bedfiles metadata
-    bedstats_df = pd.DataFrame(
-        columns=[JSON_MD5SUM_KEY, JSON_NAME_KEY] + JSON_FLOAT_KEY_VALUES)
+    bedstats_df = pd.DataFrame(columns=["md5sum", "name"] + numeric_results)
 
     # Access elements in search object produced by bbc.search (both in metadata and statistics sections keys)
     pm.info("Reading individual BED file statistics from the database")
     for bed_file in search_results:
-        bid = bed_file[JSON_NAME_KEY]
-        data = {JSON_MD5SUM_KEY: bed_file[JSON_MD5SUM_KEY], JSON_NAME_KEY: bid}
+        bid = bed_file["name"]
+        data = {"md5sum": bed_file["md5sum"], "name": bid}
         pm.info(f"Processing: {bid}")
-        for key in JSON_FLOAT_KEY_VALUES:
+        for key in numeric_results:
             try:
                 bed_file_stat = bed_file[key]
             except KeyError:
@@ -208,7 +208,7 @@ def main():
     txt_bed_path = os.path.join(output_folder, args.bedset_name + '.txt')
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
-        bedfile_path = files[BEDFILE_PATH_KEY]
+        bedfile_path = files["bedfile_path"]
         bedfile_target = os.readlink(bedfile_path) \
             if os.path.islink(bedfile_path) else bedfile_path
         txt_file.write("{}\n".format(bedfile_target))
@@ -271,7 +271,7 @@ def main():
         tar_archive_file, mode="w:", dereference=True, debug=3)
     pm.info(f"Creating TAR archive: {tar_archive_file}")
     for files in search_results:
-        bedfile_path = files[BEDFILE_PATH_KEY]
+        bedfile_path = files["bedfile_path"]
         if not os.path.isabs(bedfile_path):
             bedfile_path = os.path.realpath(
                 os.path.join(bbc.get_bedbuncher_output_path(), bedfile_path))
@@ -292,27 +292,28 @@ def main():
     with open(json_file_path, 'r', encoding='utf-8') as f:
         bedset_summary_info = json.loads(f.read())
 
-    for plot in bedset_summary_info[JSON_PLOTS_KEY]:
+    for plot in bedset_summary_info["plots"]:
         plot_id = plot["name"]
         del plot["name"]
         bedset_summary_info.update({plot_id: plot})
-    del bedset_summary_info[JSON_PLOTS_KEY]
+    del bedset_summary_info["plots"]
 
+    # TODO: source the key names from bbconf package?
     bedset_summary_info.update(
-        {JSON_NAME_KEY: args.bedset_name,
-         JSON_BEDSET_MEANS_KEY: means_dictionary,
-         JSON_BEDSET_SD_KEY: stdv_dictionary,
-         JSON_BEDSET_TAR_PATH_KEY: mk_file_type(
+        {"name": args.bedset_name,
+         "bedset_means": means_dictionary,
+         "bedset_standard_deviation": stdv_dictionary,
+         "bedset_tar_archive_path": mk_file_type(
              tar_archive_file, "TAR archive with BED files in this BED set"),
-         JSON_BEDSET_BEDFILES_GD_STATS_KEY: mk_file_type(
+         "bedset_bedfiles_gd_stats": mk_file_type(
              bedfiles_stats_path, "Statistics of the BED files in this BED set"),
-         JSON_BEDSET_GD_STATS_KEY: mk_file_type(
+         "bedset_gd_stats": mk_file_type(
              bedset_stats_path, "Means and standard deviations of the BED files in this BED set"),
-         JSON_BEDSET_IGD_DB_KEY: mk_file_type(
+         "bedset_igd_database_path": mk_file_type(
              igd_tar_archive_path, "iGD database"),
-         JSON_BEDSET_PEP_KEY: mk_file_type(
+         "bedset_pep": mk_file_type(
              pep_tar_archive_path, "PEP including BED files in this BED set"),
-         JSON_MD5SUM_KEY: bedset_digest})
+         "md5sum": bedset_digest})
 
     # select only first element of every list due to JSON produced by R putting
     # every value into a list
