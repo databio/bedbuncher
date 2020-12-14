@@ -93,15 +93,15 @@ def get_bedset_digest(sr):
     return m.hexdigest()
 
 
-def mk_file_type(pth, title):
+def mk_file_type(pth, title, md5sum):
     """
 
     :param pth:
     :param title:
     :return:
     """
-    return {"path": os.path.relpath(pth, bbc.get_bedbuncher_output_path()),
-            "title": title}
+    rel_to = os.path.join(bbc.get_bedbuncher_output_path(), md5sum)
+    return {"path": os.path.relpath(pth, rel_to), "title": title}
 
 
 def main():
@@ -143,7 +143,7 @@ def main():
         columns=["sample_name", "output_file_path", "md5sum"] + meta_list)
     output_bed_path = "source1"
     for bedfiles in search_results:
-        file_fmt = re.match('.*(.bed.*)$', bedfiles["bedfile_path"]).group(1)
+        file_fmt = re.match('.*(.bed.*)$', bedfiles["bedfile"]["path"]).group(1)
         pep_metadata = {"sample_name": bedfiles["name"],
                         "output_file_path": output_bed_path,
                         "md5sum": bedfiles["md5sum"],
@@ -208,7 +208,7 @@ def main():
     txt_bed_path = os.path.join(output_folder, args.bedset_name + '.txt')
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
-        bedfile_path = files["bedfile_path"]
+        bedfile_path = files["bedfile"]["path"]
         bedfile_target = os.readlink(bedfile_path) \
             if os.path.islink(bedfile_path) else bedfile_path
         txt_file.write("{}\n".format(bedfile_target))
@@ -271,10 +271,9 @@ def main():
         tar_archive_file, mode="w:", dereference=True, debug=3)
     pm.info(f"Creating TAR archive: {tar_archive_file}")
     for files in search_results:
-        bedfile_path = files["bedfile_path"]
+        bedfile_path = files["bedfile"]["path"]
         if not os.path.isabs(bedfile_path):
-            bedfile_path = os.path.realpath(
-                os.path.join(bbc.get_bedbuncher_output_path(), bedfile_path))
+            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), files["md5sum"], bedfile_path))
         tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path),
                         recursive=False, filter=None)
     tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
@@ -304,15 +303,15 @@ def main():
          "bedset_means": means_dictionary,
          "bedset_standard_deviation": stdv_dictionary,
          "bedset_tar_archive_path": mk_file_type(
-             tar_archive_file, "TAR archive with BED files in this BED set"),
+             tar_archive_file, "TAR archive with BED files in this BED set", bedset_digest),
          "bedset_bedfiles_gd_stats": mk_file_type(
-             bedfiles_stats_path, "Statistics of the BED files in this BED set"),
+             bedfiles_stats_path, "Statistics of the BED files in this BED set", bedset_digest),
          "bedset_gd_stats": mk_file_type(
-             bedset_stats_path, "Means and standard deviations of the BED files in this BED set"),
+             bedset_stats_path, "Means and standard deviations of the BED files in this BED set", bedset_digest),
          "bedset_igd_database_path": mk_file_type(
-             igd_tar_archive_path, "iGD database"),
+             igd_tar_archive_path, "iGD database", bedset_digest),
          "bedset_pep": mk_file_type(
-             pep_tar_archive_path, "PEP including BED files in this BED set"),
+             pep_tar_archive_path, "PEP including BED files in this BED set", bedset_digest),
          "md5sum": bedset_digest})
 
     # select only first element of every list due to JSON produced by R putting
