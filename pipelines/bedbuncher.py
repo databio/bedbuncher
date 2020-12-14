@@ -180,6 +180,7 @@ def main():
                 data.update({key: bed_file_stat})
         bedstats_df = bedstats_df.append(data, ignore_index=True)
     bedstats_df = bedstats_df.dropna(1)
+    bedstats_df[numeric_results] = bedstats_df[numeric_results].apply(pd.to_numeric)
     # Calculate bedset statistics
     pm.info("Calculating bedset statistics")
     bedfiles_means = bedstats_df.mean(axis=0)
