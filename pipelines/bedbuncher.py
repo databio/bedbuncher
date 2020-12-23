@@ -142,11 +142,11 @@ def main():
     # write genomes.txt and trackDb.txt
     genomes = []
     for bedfiles in search_results:
-        print (bedfiles.keys())
-        if bedfiles['others']["genome"] not in genomes:
-            genomes_txt = {'genome': bedfiles['others']["genome"],
-                'trackDb': 'http://dev1.bedbase.org/api/bedset/' + bedset_digest + '/file/genomes_file?genome='+ bedfiles['others']["genome"]}
-            if path.exists(os.path.join(hub_folder, "genomes.txt")):
+        print ('test print: \n',bedfiles["other"])
+        if bedfiles['other']["genome"] not in genomes:
+            genomes_txt = {'genome': bedfiles['other']["genome"],
+                'trackDb': 'http://dev1.bedbase.org/api/bedset/' + bedset_digest + '/file/genomes_file?genome='+ bedfiles['other']["genome"]}
+            if os.path.exists(os.path.join(hub_folder, "genomes.txt")):
                 f = open(os.path.join(hub_folder, "genomes.txt"),"a")
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
                 f.close()
@@ -155,7 +155,7 @@ def main():
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
                 f.close()
 
-            genome_folder = os.path.join(hub_folder,bedfiles['others']["genome"])
+            genome_folder = os.path.join(hub_folder,bedfiles['other']["genome"])
             if not os.path.exists(genome_folder):
                 os.makedirs(genome_folder)
             
@@ -163,8 +163,8 @@ def main():
                             'type': 'bigBed',
                             'bigDataUrl': 'http://dev1.bedbase.org/api/bed/' + bedfiles["md5sum"] + '/file/bigbed_file',
                             'shortLabel': bedfiles["name"],
-                            'longLabel': bedfiles["description"]}
-            if path.exists(os.path.join(genome_folder, "trackDb.txt")):
+                            'longLabel': bedfiles["other"]["description"]}
+            if os.path.exists(os.path.join(genome_folder, "trackDb.txt")):
                 f = open(os.path.join(genome_folder, "trackDb.txt"),"a")
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
                 f.close()
@@ -173,7 +173,7 @@ def main():
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
                 f.close()
 
-            genomes.append(bedfiles['others']["genome"]) 
+            genomes.append(bedfiles['other']["genome"]) 
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
@@ -200,8 +200,8 @@ def main():
                         "md5sum": bedfiles["md5sum"],
                         "file_format": file_fmt}
         for key in meta_list:
-            if key in bedfiles.keys():
-                bed_file_meta = bedfiles[key]
+            if key in bedfiles['other'].keys():
+                bed_file_meta = bedfiles['other'][key]
                 pep_metadata.update({key: bed_file_meta})
             else:
                 pep_metadata.update({key: ""})
