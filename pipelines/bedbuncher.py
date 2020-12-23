@@ -124,6 +124,57 @@ def main():
         pm.info(f"Output directory does not exist. Creating: {output_folder}")
         os.makedirs(output_folder)
 
+    # Create TrackHub directory
+    pm.info(f"Creating TrackHub directory for {args.bedset_name}")
+    hub_folder = os.path.join(output_folder, 'bedsetHub')
+    if not os.path.exists(hub_folder):
+        os.makedirs(hub_folder)
+    # write hub.txt file
+    hub_txt = {'hub': 'BEDBASE_'+args.bedset_name,
+            'shortLabel': 'BEDBASE_'+args.bedset_name,
+            'longLabel': args.bedset_name + ' signal tracks',
+            'genomesFile': 'http://dev1.bedbase.org/api/bedset/' + bedset_digest + '/file/hub_file',
+            'email': 'bx2ur@virginia.edu',
+            'descriptionUrl': 'http://dev1.bedbase.org/'}
+    f = open(os.path.join(hub_folder, "hub.txt"),"w")
+    f.writelines('{}\t{}\n'.format(k,v) for k, v in hub_txt.items()) 
+    f.close()
+    # write genomes.txt and trackDb.txt
+    genomes = []
+    for bedfiles in search_results:
+        print (bedfiles.keys())
+        if bedfiles['others']["genome"] not in genomes:
+            genomes_txt = {'genome': bedfiles['others']["genome"],
+                'trackDb': 'http://dev1.bedbase.org/api/bedset/' + bedset_digest + '/file/genomes_file?genome='+ bedfiles['others']["genome"]}
+            if path.exists(os.path.join(hub_folder, "genomes.txt")):
+                f = open(os.path.join(hub_folder, "genomes.txt"),"a")
+                f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
+                f.close()
+            else:
+                f = open(os.path.join(hub_folder, "genomes.txt"),"w")
+                f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
+                f.close()
+
+            genome_folder = os.path.join(hub_folder,bedfiles['others']["genome"])
+            if not os.path.exists(genome_folder):
+                os.makedirs(genome_folder)
+            
+            trackDb_txt = {'track': bedfiles["name"],
+                            'type': 'bigBed',
+                            'bigDataUrl': 'http://dev1.bedbase.org/api/bed/' + bedfiles["md5sum"] + '/file/bigbed_file',
+                            'shortLabel': bedfiles["name"],
+                            'longLabel': bedfiles["description"]}
+            if path.exists(os.path.join(genome_folder, "trackDb.txt")):
+                f = open(os.path.join(genome_folder, "trackDb.txt"),"a")
+                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
+                f.close()
+            else:
+                f = open(os.path.join(genome_folder, "trackDb.txt"),"w")
+                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
+                f.close()
+
+            genomes.append(bedfiles['others']["genome"]) 
+
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
     # .bed.gz files produce basic csv annotation sheet based on IDs found in
@@ -313,7 +364,8 @@ def main():
              igd_tar_archive_path, "iGD database", bedset_digest),
          "bedset_pep": mk_file_type(
              pep_tar_archive_path, "PEP including BED files in this BED set", bedset_digest),
-         "md5sum": bedset_digest})
+         "md5sum": bedset_digest}, 
+         )
 
     # select only first element of every list due to JSON produced by R putting
     # every value into a list
