@@ -140,10 +140,9 @@ def main():
     f.writelines('{}\t{}\n'.format(k,v) for k, v in hub_txt.items()) 
     f.close()
     # write genomes.txt and trackDb.txt
-    genomes = []
+    genomes = {}
     for bedfiles in search_results:
-        print ('test print: \n',bedfiles["other"])
-        if bedfiles['other']["genome"] not in genomes:
+        if bedfiles['other']["genome"] not in genomes.keys():
             genomes_txt = {'genome': bedfiles['other']["genome"],
                 'trackDb': 'http://dev1.bedbase.org/api/bedset/' + bedset_digest + '/file/genomes_file?genome='+ bedfiles['other']["genome"]}
             if os.path.exists(os.path.join(hub_folder, "genomes.txt")):
@@ -172,8 +171,9 @@ def main():
                 f = open(os.path.join(genome_folder, "trackDb.txt"),"w")
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
                 f.close()
+            genomes.update({bedfiles['other']["genome"] : os.path.join(genome_folder, "trackDb.txt")})
 
-            genomes.append(bedfiles['other']["genome"]) 
+    print ("test print:\n",genomes) 
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
@@ -364,7 +364,8 @@ def main():
              igd_tar_archive_path, "iGD database", bedset_digest),
          "bedset_pep": mk_file_type(
              pep_tar_archive_path, "PEP including BED files in this BED set", bedset_digest),
-         "md5sum": bedset_digest}, 
+         "md5sum": bedset_digest, 
+         "bedset_trackdb_path": genomes}, 
          )
 
     # select only first element of every list due to JSON produced by R putting
