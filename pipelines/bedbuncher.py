@@ -173,7 +173,10 @@ def main():
                 f.close()
             genomes.update({bedfiles['other']["genome"] : os.path.join(genome_folder, "trackDb.txt")})
 
-    print ("test print:\n",genomes) 
+    print ("test print:\n",genomes)
+    for genome, path in genomes.items():
+        genomes[genome] = mk_file_type(
+             path, genome+" trackDb.txt files for the BED set", bedset_digest) 
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
