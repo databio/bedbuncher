@@ -322,7 +322,7 @@ def main():
     bedset_id = bbc.bedset.report(
         record_identifier=bedset_digest, values=data, return_id=True)
     for hit_id in hit_ids:
-        bbc.report_bedfile_for_bedset(bedset_id=bedset_id, bedfile_id=hit_id)
+        bbc.report_relationship(bedset_id=bedset_id, bedfile_id=hit_id)
     pm.stop_pipeline()
 
 
