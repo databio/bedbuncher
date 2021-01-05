@@ -133,26 +133,28 @@ def main():
     hub_txt = {'hub': 'BEDBASE_'+args.bedset_name,
             'shortLabel': 'BEDBASE_'+args.bedset_name,
             'longLabel': args.bedset_name + ' signal tracks',
-            'genomesFile': 'http://dev1.bedbase.org/api/bedset/' + bedset_digest + '/file/hub_file',
+            'genomesFile': "genomes.txt",
             'email': 'bx2ur@virginia.edu',
-            'descriptionUrl': 'http://dev1.bedbase.org/'}
+            # 'descriptionUrl': 'http://dev1.bedbase.org/'
+            }
     f = open(os.path.join(hub_folder, "hub.txt"),"w")
     f.writelines('{}\t{}\n'.format(k,v) for k, v in hub_txt.items()) 
     f.close()
     # write genomes.txt and trackDb.txt
-    genomes = {}
+    genome = []
     for bedfiles in search_results:
-        if bedfiles['other']["genome"] not in genomes.keys():
+        if bedfiles['other']["genome"] not in genome:
+            genome.append(bedfiles['other']["genome"])
+
+        if genome.length > 1:
+            pm.info(f"Found BED files from more than one genome assemblies for {args.bedset_name}. Please specified the genome assembly in the query table.")
+
+        for g in genome:
             genomes_txt = {'genome': bedfiles['other']["genome"],
-                'trackDb': 'http://dev1.bedbase.org/api/bedset/' + bedset_digest + '/file/genomes_file?genome='+ bedfiles['other']["genome"]}
-            if os.path.exists(os.path.join(hub_folder, "genomes.txt")):
-                f = open(os.path.join(hub_folder, "genomes.txt"),"a")
-                f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
-                f.close()
-            else:
-                f = open(os.path.join(hub_folder, "genomes.txt"),"w")
-                f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
-                f.close()
+                'trackDb': os.path.join(bedfiles['other']["genome"], "trackDb.txt")}
+            f = open(os.path.join(hub_folder, "genomes.txt"),"w")
+            f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
+            f.close()
 
             genome_folder = os.path.join(hub_folder,bedfiles['other']["genome"])
             if not os.path.exists(genome_folder):
@@ -160,7 +162,7 @@ def main():
             
             trackDb_txt = {'track': bedfiles["name"],
                             'type': 'bigBed',
-                            'bigDataUrl': 'http://dev1.bedbase.org/api/bed/' + bedfiles["md5sum"] + '/file/bigbed_file',
+                            'bigDataUrl': 'http://dev1.bedbase.org/api/bed/' + bedfiles["md5sum"] + '/file/bigbedfile',
                             'shortLabel': bedfiles["name"],
                             'longLabel': bedfiles["other"]["description"]}
             if os.path.exists(os.path.join(genome_folder, "trackDb.txt")):
@@ -171,12 +173,6 @@ def main():
                 f = open(os.path.join(genome_folder, "trackDb.txt"),"w")
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
                 f.close()
-            genomes.update({bedfiles['other']["genome"] : os.path.join(genome_folder, "trackDb.txt")})
-
-    print ("test print:\n",genomes)
-    for genome, path in genomes.items():
-        genomes[genome] = mk_file_type(
-             path, genome+" trackDb.txt files for the BED set", bedset_digest) 
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
@@ -368,7 +364,8 @@ def main():
          "bedset_pep": mk_file_type(
              pep_tar_archive_path, "PEP including BED files in this BED set", bedset_digest),
          "md5sum": bedset_digest, 
-         "bedset_trackdb_path": genomes}, 
+         "hubfile_path": mk_file_type(
+             os.path.join(hub_folder, "hub.txt"), "hub.txt file for this BED set", bedset_digest)}, 
          )
 
     # select only first element of every list due to JSON produced by R putting
