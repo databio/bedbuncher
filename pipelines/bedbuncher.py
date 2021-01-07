@@ -162,16 +162,18 @@ def main():
             
             trackDb_txt = {'track': bedfiles["name"],
                             'type': 'bigBed',
-                            'bigDataUrl': 'http://dev1.bedbase.org/api/bed/' + bedfiles["md5sum"] + '/file/bigbedfile',
+                            'bigDataUrl': 'http://data.bedbase.org/bigbed_files/' + bedfiles["name"] + '.bigBed',
                             'shortLabel': bedfiles["name"],
                             'longLabel': bedfiles["other"]["description"]}
             if os.path.exists(os.path.join(genome_folder, "trackDb.txt")):
                 f = open(os.path.join(genome_folder, "trackDb.txt"),"a")
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
+                f.writelines('\n')
                 f.close()
             else:
                 f = open(os.path.join(genome_folder, "trackDb.txt"),"w")
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
+                f.writelines('\n')
                 f.close()
 
     # PRODUCE OUTPUT BEDSET PEP
