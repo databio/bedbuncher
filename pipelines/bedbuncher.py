@@ -164,7 +164,9 @@ def main():
                             'type': 'bigBed',
                             'bigDataUrl': 'http://data.bedbase.org/bigbed_files/' + bedfiles["name"] + '.bigBed',
                             'shortLabel': bedfiles["name"],
-                            'longLabel': bedfiles["other"]["description"]}
+                            'longLabel': bedfiles["other"]["description"],
+                            'visibility': 'full',
+                            }
             if os.path.exists(os.path.join(genome_folder, "trackDb.txt")):
                 f = open(os.path.join(genome_folder, "trackDb.txt"),"a")
                 f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
