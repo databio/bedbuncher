@@ -135,7 +135,7 @@ def main():
             'longLabel': args.bedset_name + ' signal tracks',
             'genomesFile': "genomes.txt",
             'email': 'bx2ur@virginia.edu',
-            # 'descriptionUrl': 'http://dev1.bedbase.org/'
+            'descriptionUrl': 'http://dev1.bedbase.org/'
             }
     f = open(os.path.join(hub_folder, "hub.txt"),"w")
     f.writelines('{}\t{}\n'.format(k,v) for k, v in hub_txt.items()) 
