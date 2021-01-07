@@ -367,8 +367,10 @@ def main():
              pep_tar_archive_path, "PEP including BED files in this BED set", bedset_digest),
          "md5sum": bedset_digest, 
          "hubfile_path": mk_file_type(
-             os.path.join(hub_folder, "hub.txt"), "hub.txt file for this BED set", bedset_digest)}, 
-         )
+             os.path.join(hub_folder, "hub.txt"), "hub.txt file for this BED set", bedset_digest),
+         "genome": genome[0]
+         }, 
+    )
 
     # select only first element of every list due to JSON produced by R putting
     # every value into a list
