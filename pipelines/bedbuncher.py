@@ -100,7 +100,7 @@ def mk_file_type(pth, title, md5sum):
     :param title:
     :return:
     """
-    rel_to = os.path.join(bbc.get_bedbuncher_output_path(), md5sum)
+    rel_to = os.path.abspath(os.path.join(bbc.get_bedbuncher_output_path(), "..", ".."))
     return {"path": os.path.relpath(pth, rel_to), "title": title}
 
 
@@ -328,7 +328,7 @@ def main():
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
         if not os.path.isabs(bedfile_path):
-            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), files["md5sum"], bedfile_path))
+            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), "..", "..", bedfile_path))
         tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path),
                         recursive=False, filter=None)
     tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
