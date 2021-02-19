@@ -2,14 +2,14 @@
 Pipeline designed to create **bedsets** (sets of BED files) that will be retrieved from bedbase.
 
 Examples of bedsets:
-- BED files with regions count greater than 1000 (query: `regions_no>1000`)
+- BED files with regions count greater than 1000 (query: `regions_no>%s` query_val: `1000`)
 - BED files produced in ChiP-seq experiments
 
 ## To run the pipeline 
 1. Clone the repository
 2. Install required python packages via 
 ```
-pip install -r requirements/requirements.txt --user
+pip install -r requirements/requirements-all.txt --user
 ```
 3. Install additional dependencies:
 
@@ -38,5 +38,6 @@ looper run project/cfg.yaml
 - iGD database created from the bedset.
 - Bedset statistics (currenty means and standard deviations).
 - PEP for a specific bedset created using the pipeline (currently under development).
+- trackHub directory for the BED set that can be viewed on the UCSC Genome Browser. 
 
 
