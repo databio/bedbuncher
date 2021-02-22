@@ -193,7 +193,7 @@ def main():
         columns=["sample_name", "output_file_path", "md5sum"] + meta_list)
     output_bed_path = "source1"
     for bedfiles in search_results:
-        file_fmt = re.match('.*(.bed.*)$', bedfiles["bedfile"]["path"]).group(1)
+        file_fmt = 'bed'
         pep_metadata = {"sample_name": bedfiles["name"],
                         "output_file_path": output_bed_path,
                         "md5sum": bedfiles["md5sum"],
