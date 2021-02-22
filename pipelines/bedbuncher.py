@@ -167,16 +167,13 @@ def main():
                             'longLabel': bedfiles["other"]["description"],
                             'visibility': 'full',
                             }
-            if os.path.exists(os.path.join(genome_folder, "trackDb.txt")):
-                f = open(os.path.join(genome_folder, "trackDb.txt"),"a")
-                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
-                f.writelines('\n')
-                f.close()
-            else:
-                f = open(os.path.join(genome_folder, "trackDb.txt"),"w")
-                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
-                f.writelines('\n')
-                f.close()
+            mode = "a" if os.path.exists(os.path.join(genome_folder, "trackDb.txt")) else "w"
+
+            f = open(os.path.join(genome_folder, "trackDb.txt"),mode)
+            f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
+            f.writelines('\n')
+            f.close()
+            
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
