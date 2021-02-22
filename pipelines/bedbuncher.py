@@ -43,7 +43,7 @@ parser.add_argument("-n", "--bedset-name",
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser,
                                   groups=["pypiper"],
-                                  required=["--query", "--bedset_name"])
+                                  required=["--query", "--bedset_name", "--bedbase-config"])
 args = parser.parse_args()
 
 # Initialize bbc object
