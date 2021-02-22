@@ -147,7 +147,7 @@ def main():
             genome.append(bedfiles['other']["genome"])
 
         if len(genome) > 1:
-            pm.info(f"Found BED files from more than one genome assemblies for {args.bedset_name}. Please specified the genome assembly in the query table.")
+            pm.info(f"Found BED files from more than one genome assemblies for {args.bedset_name}. Please specify the genome assembly in the query table.")
 
         for g in genome:
             genomes_txt = {'genome': bedfiles['other']["genome"],
