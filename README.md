@@ -3,7 +3,7 @@ Pipeline designed to create **bedsets** (sets of BED files) that will be retriev
 
 Examples of bedsets:
 - BED files with regions count greater than 1000 (query: `regions_no>%s` query_val: `1000`)
-- BED files produced in ChiP-seq experiments
+- BED files produced in ChIP-seq experiments
 
 ## To run the pipeline 
 1. Clone the repository
