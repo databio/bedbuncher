@@ -3,6 +3,8 @@ library(data.table)
 library(GenomicRanges)
 library(LOLA)
 library(ggplot2)
+library(conflicted)
+library(R.utils)
 
 option_list = list(
     make_option(c("--bedfilelist"), type="character", default=NULL, 
@@ -118,12 +120,15 @@ plotBoth <- function(plotId, g){
 }
 
 getPlotReportDF <- function(plotId, title){
-    pth = paste0(opt$id, "_", plotId)
+    pth = paste0(opt$outputfolder, "/", opt$id, "_", plotId)
+    print(paste0("Writing: ", pth))
+    rel_pth = getRelativePath(pth, paste0(opt$outputfolder, "/../../../"))
+    print(paste0("Writing: ", rel_pth))
     newPlot = data.frame(
         "name"=plotId, 
         "title"=title, 
-        "thumbnail_path"=paste0(pth, ".png"), 
-        "path"=paste0(pth, ".pdf"),
+        "thumbnail_path"=paste0(rel_pth, ".png"), 
+        "path"=paste0(rel_pth, ".pdf"),
         stringsAsFactors = FALSE
     )
     return(newPlot)
@@ -133,12 +138,13 @@ doItAll <- function(opt) {
     bedlist = read.table(file=opt$bedfilelist, stringsAsFactors=FALSE)
     grl = GRangesList()
     for(i in seq_len(NROW(bedlist))){
-        bed_path = paste0(opt$outputfolder, "/", bedlist[i, 1])
+        bed_path = paste0(opt$outputfolder, "/../../../", bedlist[i, 1])
         if(!file.exists(bed_path)) stop("File not found: ", bed_path)
         message("reading BED: ", bed_path)
         grl[[i]] = LOLA::readBed(bed_path)
     }
     plotBoth("region_commonality", plotRegionCommonality(calcRegionCommonality(grl)))
+    print(paste0("done plotting "))
     plots = getPlotReportDF("region_commonality", "BED region commonality in BED set")
     # Note: names of the list elements MUST match what's defined in: https://github.com/databio/bbconf/blob/master/bbconf/schemas/bedsets_schema.yaml
     write(jsonlite::toJSON(list(plots=plots), pretty=TRUE), opt$json)

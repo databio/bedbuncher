@@ -100,7 +100,7 @@ def mk_file_type(pth, title, md5sum):
     :param title:
     :return:
     """
-    rel_to = os.path.join(bbc.get_bedbuncher_output_path(), md5sum)
+    rel_to = os.path.abspath(os.path.join(bbc.get_bedbuncher_output_path(), "..", ".."))
     return {"path": os.path.relpath(pth, rel_to), "title": title}
 
 
@@ -123,6 +123,60 @@ def main():
     if not os.path.exists(output_folder):
         pm.info(f"Output directory does not exist. Creating: {output_folder}")
         os.makedirs(output_folder)
+
+    # Create TrackHub directory
+    pm.info(f"Creating TrackHub directory for {args.bedset_name}")
+    hub_folder = os.path.join(output_folder, 'bedsetHub')
+    if not os.path.exists(hub_folder):
+        os.makedirs(hub_folder)
+    # write hub.txt file
+    hub_txt = {'hub': 'BEDBASE_'+args.bedset_name,
+            'shortLabel': 'BEDBASE_'+args.bedset_name,
+            'longLabel': args.bedset_name + ' signal tracks',
+            'genomesFile': "genomes.txt",
+            'email': 'bx2ur@virginia.edu',
+            'descriptionUrl': 'http://dev1.bedbase.org/'
+            }
+    f = open(os.path.join(hub_folder, "hub.txt"),"w")
+    f.writelines('{}\t{}\n'.format(k,v) for k, v in hub_txt.items()) 
+    f.close()
+    # write genomes.txt and trackDb.txt
+    genome = []
+    for bedfiles in search_results:
+        if bedfiles['other']["genome"] not in genome:
+            genome.append(bedfiles['other']["genome"])
+
+        if len(genome) > 1:
+            pm.info(f"Found BED files from more than one genome assemblies for {args.bedset_name}. Please specified the genome assembly in the query table.")
+
+        for g in genome:
+            genomes_txt = {'genome': bedfiles['other']["genome"],
+                'trackDb': os.path.join(bedfiles['other']["genome"], "trackDb.txt")}
+            f = open(os.path.join(hub_folder, "genomes.txt"),"w")
+            f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
+            f.close()
+
+            genome_folder = os.path.join(hub_folder,bedfiles['other']["genome"])
+            if not os.path.exists(genome_folder):
+                os.makedirs(genome_folder)
+            
+            trackDb_txt = {'track': bedfiles["name"],
+                            'type': 'bigBed',
+                            'bigDataUrl': 'http://data.bedbase.org/bigbed_files/' + bedfiles["name"] + '.bigBed',
+                            'shortLabel': bedfiles["name"],
+                            'longLabel': bedfiles["other"]["description"],
+                            'visibility': 'full',
+                            }
+            if os.path.exists(os.path.join(genome_folder, "trackDb.txt")):
+                f = open(os.path.join(genome_folder, "trackDb.txt"),"a")
+                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
+                f.writelines('\n')
+                f.close()
+            else:
+                f = open(os.path.join(genome_folder, "trackDb.txt"),"w")
+                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
+                f.writelines('\n')
+                f.close()
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
@@ -149,8 +203,8 @@ def main():
                         "md5sum": bedfiles["md5sum"],
                         "file_format": file_fmt}
         for key in meta_list:
-            if key in bedfiles.keys():
-                bed_file_meta = bedfiles[key]
+            if key in bedfiles['other'].keys():
+                bed_file_meta = bedfiles['other'][key]
                 pep_metadata.update({key: bed_file_meta})
             else:
                 pep_metadata.update({key: ""})
@@ -274,7 +328,7 @@ def main():
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
         if not os.path.isabs(bedfile_path):
-            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), files["md5sum"], bedfile_path))
+            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), "..", "..", bedfile_path))
         tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path),
                         recursive=False, filter=None)
     tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
@@ -313,7 +367,12 @@ def main():
              igd_tar_archive_path, "iGD database", bedset_digest),
          "bedset_pep": mk_file_type(
              pep_tar_archive_path, "PEP including BED files in this BED set", bedset_digest),
-         "md5sum": bedset_digest})
+         "md5sum": bedset_digest, 
+         "hubfile_path": mk_file_type(
+             os.path.join(hub_folder, "hub.txt"), "hub.txt file for this BED set", bedset_digest),
+         "genome": genome[0]
+         }, 
+    )
 
     # select only first element of every list due to JSON produced by R putting
     # every value into a list
