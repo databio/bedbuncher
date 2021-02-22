@@ -19,7 +19,6 @@ from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
 from bbconf import BedBaseConf
 from hashlib import md5
-from psycopg2.extras import Json
 
 import bbconf
 import pypiper
