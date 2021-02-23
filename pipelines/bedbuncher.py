@@ -19,7 +19,6 @@ from bbconf.const import *
 from bbconf.exceptions import BedBaseConfError
 from bbconf import BedBaseConf
 from hashlib import md5
-from psycopg2.extras import Json
 
 import bbconf
 import pypiper
@@ -40,11 +39,15 @@ parser.add_argument("-b", "--bedbase-config",
                          f"Optional if {CFG_ENV_VARS} env vars are set.")
 parser.add_argument("-n", "--bedset-name",
                     help="name assigned to the bedset to be created", type=str)
+parser.add_argument("-g", "--genome",
+                    help="genome assembly of the BED set",
+                    type=str)
 
 # add pypiper args to make pipeline looper compatible
 parser = pypiper.add_pypiper_args(parser,
                                   groups=["pypiper"],
-                                  required=["--query", "--bedset_name"])
+                                  required=["--query", "--bedset_name", 
+                                            "--bedbase-config", "--genome"])
 args = parser.parse_args()
 
 # Initialize bbc object
@@ -89,29 +92,38 @@ def get_bedset_digest(sr):
     :return str: bedset digest
     """
     m = md5()
-    m.update(";".join(sorted([f["md5sum"] for f in sr])).encode('utf-8'))
+    m.update(";".join(sorted([f["md5sum"] for f in sr])).encode("utf-8"))
     return m.hexdigest()
 
 
 def mk_file_type(pth, title, md5sum):
     """
-
-    :param pth:
-    :param title:
-    :return:
+    make file type object for the given file path and title 
+    
+    :param pth: abs path of the file 
+    :param title: file title
+    :param md5sum: bedset digest
+    :return: file type obj 
     """
-    rel_to = os.path.abspath(os.path.join(bbc.get_bedbuncher_output_path(), "..", ".."))
+    rel_to = os.path.abspath(os.path.join(bbc.get_bedbuncher_output_path(), 
+                                            os.pardir,os.pardir))
     return {"path": os.path.relpath(pth, rel_to), "title": title}
 
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
+    # add genome to the query
+    query_val = [args.query_val]
+    query_val.append(args.genome)
+    query = args.query + " AND other->>'genome'=%s"
     # Use bbconf method to look for files in the database
     search_results = bbc.bed.select(
-        condition=args.query, condition_val=[args.query_val])
+        condition=query, condition_val=query_val)
+    print("query:", query)
+    print("query_val", query_val)
     nhits = len(search_results)
     if nhits < 2:
-        raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}")
+        raise BedBaseConfError(f"{nhits} BED files match the query: {query}")
     pm.info(f"{nhits} BED files match the query")
     hit_ids = [i["id"] for i in search_results]
     bedset_digest = get_bedset_digest(search_results)
@@ -126,57 +138,47 @@ def main():
 
     # Create TrackHub directory
     pm.info(f"Creating TrackHub directory for {args.bedset_name}")
-    hub_folder = os.path.join(output_folder, 'bedsetHub')
+    hub_folder = os.path.join(output_folder, "bedsetHub")
     if not os.path.exists(hub_folder):
         os.makedirs(hub_folder)
     # write hub.txt file
-    hub_txt = {'hub': 'BEDBASE_'+args.bedset_name,
-            'shortLabel': 'BEDBASE_'+args.bedset_name,
-            'longLabel': args.bedset_name + ' signal tracks',
-            'genomesFile': "genomes.txt",
-            'email': 'bx2ur@virginia.edu',
-            'descriptionUrl': 'http://dev1.bedbase.org/'
+    hub_txt = {"hub": "BEDBASE_"+args.bedset_name,
+            "shortLabel": "BEDBASE_"+args.bedset_name,
+            "longLabel": args.bedset_name + " signal tracks",
+            "genomesFile": "genomes.txt",
+            "email": "bx2ur@virginia.edu",
+            "descriptionUrl": "http://www.bedbase.org/"
             }
     f = open(os.path.join(hub_folder, "hub.txt"),"w")
-    f.writelines('{}\t{}\n'.format(k,v) for k, v in hub_txt.items()) 
+    f.writelines("{}\t{}\n".format(k,v) for k, v in hub_txt.items()) 
     f.close()
     # write genomes.txt and trackDb.txt
-    genome = []
-    for bedfiles in search_results:
-        if bedfiles['other']["genome"] not in genome:
-            genome.append(bedfiles['other']["genome"])
 
-        if len(genome) > 1:
-            pm.info(f"Found BED files from more than one genome assemblies for {args.bedset_name}. Please specified the genome assembly in the query table.")
+    for bedfiles in search_results:        
+        genomes_txt = {"genome": args.genome,
+            "trackDb": os.path.join(args.genome, "trackDb.txt")}
+        f = open(os.path.join(hub_folder, "genomes.txt"),"w")
+        f.writelines("{}\t{}\n".format(k,v) for k, v in genomes_txt.items())
+        f.close()
 
-        for g in genome:
-            genomes_txt = {'genome': bedfiles['other']["genome"],
-                'trackDb': os.path.join(bedfiles['other']["genome"], "trackDb.txt")}
-            f = open(os.path.join(hub_folder, "genomes.txt"),"w")
-            f.writelines('{}\t{}\n'.format(k,v) for k, v in genomes_txt.items())
-            f.close()
+        genome_folder = os.path.join(hub_folder,args.genome)
+        if not os.path.exists(genome_folder):
+            os.makedirs(genome_folder)
+        
+        trackDb_txt = {"track": bedfiles["name"],
+                        "type": "bigBed",
+                        "bigDataUrl": "http://data.bedbase.org/bigbed_files/" + bedfiles["name"] + ".bigBed",
+                        "shortLabel": bedfiles["name"],
+                        "longLabel": bedfiles["other"]["description"],
+                        "visibility": "full",
+                        }
+        mode = "a" if os.path.exists(os.path.join(genome_folder, "trackDb.txt")) else "w"
 
-            genome_folder = os.path.join(hub_folder,bedfiles['other']["genome"])
-            if not os.path.exists(genome_folder):
-                os.makedirs(genome_folder)
+        f = open(os.path.join(genome_folder, "trackDb.txt"),mode)
+        f.writelines("{}\t{}\n".format(k,v) for k, v in trackDb_txt.items())
+        f.writelines("\n")
+        f.close()
             
-            trackDb_txt = {'track': bedfiles["name"],
-                            'type': 'bigBed',
-                            'bigDataUrl': 'http://data.bedbase.org/bigbed_files/' + bedfiles["name"] + '.bigBed',
-                            'shortLabel': bedfiles["name"],
-                            'longLabel': bedfiles["other"]["description"],
-                            'visibility': 'full',
-                            }
-            if os.path.exists(os.path.join(genome_folder, "trackDb.txt")):
-                f = open(os.path.join(genome_folder, "trackDb.txt"),"a")
-                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
-                f.writelines('\n')
-                f.close()
-            else:
-                f = open(os.path.join(genome_folder, "trackDb.txt"),"w")
-                f.writelines('{}\t{}\n'.format(k,v) for k, v in trackDb_txt.items())
-                f.writelines('\n')
-                f.close()
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
@@ -197,20 +199,20 @@ def main():
         columns=["sample_name", "output_file_path", "md5sum"] + meta_list)
     output_bed_path = "source1"
     for bedfiles in search_results:
-        file_fmt = re.match('.*(.bed.*)$', bedfiles["bedfile"]["path"]).group(1)
+        file_fmt = "bed"
         pep_metadata = {"sample_name": bedfiles["name"],
                         "output_file_path": output_bed_path,
                         "md5sum": bedfiles["md5sum"],
                         "file_format": file_fmt}
         for key in meta_list:
-            if key in bedfiles['other'].keys():
-                bed_file_meta = bedfiles['other'][key]
+            if key in bedfiles["other"].keys():
+                bed_file_meta = bedfiles["other"][key]
                 pep_metadata.update({key: bed_file_meta})
             else:
                 pep_metadata.update({key: ""})
         bedset_pep_df = bedset_pep_df.append(pep_metadata, ignore_index=True)
 
-    bedset_annotation_sheet = args.bedset_name + '_annotation_sheet.csv'
+    bedset_annotation_sheet = args.bedset_name + "_annotation_sheet.csv"
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
@@ -219,7 +221,8 @@ def main():
     # Create df with bedfiles metadata
     bedstats_df = pd.DataFrame(columns=["md5sum", "name"] + numeric_results)
 
-    # Access elements in search object produced by bbc.search (both in metadata and statistics sections keys)
+    # Access elements in search object produced by bbc.search 
+    # (both in metadata and statistics sections keys)
     pm.info("Reading individual BED file statistics from the database")
     for bed_file in search_results:
         bid = bed_file["name"]
@@ -245,7 +248,7 @@ def main():
     stdv_dictionary = dict(bedfiles_stdv)
     print(f"stdv_dictionary: {stdv_dictionary}")
     # Save bedstats_df matrix as csv file into the user-defined output_folder
-    bedfiles_stats_path = os.path.join(output_folder, args.bedset_name + '_bedstat.csv')
+    bedfiles_stats_path = os.path.join(output_folder, args.bedset_name + "_bedstat.csv")
     pm.info(f"Saving bedfiles statistics to: {bedfiles_stats_path}")
     bedstats_df.to_csv(bedfiles_stats_path, index=False)
 
@@ -253,14 +256,14 @@ def main():
     means_df = pd.DataFrame(bedfiles_means, columns=["Mean"])
     stdv_df = pd.DataFrame(bedfiles_stdv, columns=["Standard Deviation"])
     bedset_df = pd.concat([means_df, stdv_df], axis=1)
-    bedset_stats_path = os.path.join(output_folder, args.bedset_name + '_summaryStats.csv')
+    bedset_stats_path = os.path.join(output_folder, args.bedset_name + "_summaryStats.csv")
     pm.info(f"Saving bedset statistics to: {bedset_stats_path}")
     bedset_df.to_csv(bedset_stats_path)
 
     pm.info("Creating iGD database")
     # IGD DATABASE
     # Need a .txt file with the paths to the queried bed files as input to the igd create command
-    txt_bed_path = os.path.join(output_folder, args.bedset_name + '.txt')
+    txt_bed_path = os.path.join(output_folder, args.bedset_name + ".txt")
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
@@ -282,7 +285,7 @@ def main():
     pm.run(cmd, target=os.path.join(igd_folder_path + ".tar.gz"), nofail=True)
 
     # TAR the iGD database folder
-    igd_tar_archive_path = os.path.abspath(os.path.join(igd_folder_path + '.tar.gz'))
+    igd_tar_archive_path = os.path.abspath(os.path.join(igd_folder_path + ".tar.gz"))
     with tarfile.open(igd_tar_archive_path, mode="w:gz", dereference=True, debug=3) as igd_tar:
         pm.info(f"Creating iGD database TAR archive: {igd_tar_archive_path}")
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
@@ -302,7 +305,7 @@ def main():
     # create yaml config file for newly produced bedset
     # create an empty file to write the cfg to
     cfg_path = os.path.join(pep_folder_path, args.bedset_name + "_cfg.yaml")
-    open(cfg_path, 'a').close()
+    open(cfg_path, "a").close()
     config_attamp = yacman.YacAttMap(filepath=cfg_path)
     with config_attamp as y:
         y.pep_version = "2.0.0"
@@ -321,21 +324,22 @@ def main():
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(
-        os.path.join(output_folder, args.bedset_name + '.tar'))
+        os.path.join(output_folder, args.bedset_name + ".tar"))
     tar_archive = tarfile.open(
         tar_archive_file, mode="w:", dereference=True, debug=3)
     pm.info(f"Creating TAR archive: {tar_archive_file}")
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
         if not os.path.isabs(bedfile_path):
-            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), "..", "..", bedfile_path))
+            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), 
+                                                        os.pardir,os.pardir, bedfile_path))
         tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path),
                         recursive=False, filter=None)
     tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     tar_archive.close()
 
     # create a separate TAR.gz archive for the PEP annotation and config files
-    pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + '.tar.gz'))
+    pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + ".tar"))
     with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) \
             as pep_tar:
         pm.info(f"Creating PEP TAR archive: {pep_tar_archive_path}")
@@ -343,7 +347,7 @@ def main():
     pm.clean_add(pep_folder_path)
 
     # read JSON produced in bedsetStat.R (with plot paths)
-    with open(json_file_path, 'r', encoding='utf-8') as f:
+    with open(json_file_path, "r", encoding="utf-8") as f:
         bedset_summary_info = json.loads(f.read())
 
     for plot in bedset_summary_info["plots"]:
@@ -370,7 +374,7 @@ def main():
          "md5sum": bedset_digest, 
          "hubfile_path": mk_file_type(
              os.path.join(hub_folder, "hub.txt"), "hub.txt file for this BED set", bedset_digest),
-         "genome": genome[0]
+         "genome": args.genome
          }, 
     )
 
@@ -385,7 +389,7 @@ def main():
     pm.stop_pipeline()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
