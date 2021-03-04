@@ -3,6 +3,8 @@ library(data.table)
 library(GenomicRanges)
 library(LOLA)
 library(ggplot2)
+library(conflicted)
+library(R.utils)
 
 option_list = list(
     make_option(c("--bedfilelist"), type="character", default=NULL, 
@@ -16,12 +18,17 @@ option_list = list(
                 help="BED set human-readable ID to use for output files prefix", 
                 metavar="character")
 )
-opt_parser = OptionParser(option_list=option_list);
-opt = parse_args(opt_parser);    
+opt_parser = OptionParser(option_list=option_list)
+opt = parse_args(opt_parser)
 
 if (is.null(opt$bedfilelist)) {
     print_help(opt_parser)
     stop("bedfilelist input missing.")
+}
+
+if (is.null(opt$outputfolder)) {
+    print_help(opt_parser)
+    stop("outputfolder input missing.")
 }
 
 if (is.null(opt$id)) {
@@ -105,36 +112,42 @@ plotRegionCommonality <- function(percCounts) {
     return(g)
 }
 
-plotBoth <- function(plotPth, g){
-    ggplot2::ggsave(paste0(plotPth, ".png"), g, device="png", width=12, 
-                    height=12, units="cm")
-    message("Saved plot: ", paste0(plotPth, ".png"))
-    ggplot2::ggsave(paste0(plotPth, ".pdf"), g, device="pdf", width=12, 
-                    height=12, units="cm")
-    message("Saved plot: ", paste0(plotPth, ".pdf"))
+plotBoth <- function(plotId, g){
+    pth = paste0(opt$outputfolder, "/", opt$id, "_", plotId)
+    print(paste0("Plotting: ", pth))
+    ggplot2::ggsave(paste0(pth, ".png"), g, device="png", width=8, height=8, units="in")
+    ggplot2::ggsave(paste0(pth, ".pdf"), g, device="pdf", width=8, height=8, units="in")
+}
+
+getPlotReportDF <- function(plotId, title){
+    pth = paste0(opt$outputfolder, "/", opt$id, "_", plotId)
+    print(paste0("Writing: ", pth))
+    rel_pth = getRelativePath(pth, paste0(opt$outputfolder, "/../../../"))
+    print(paste0("Writing: ", rel_pth))
+    newPlot = data.frame(
+        "name"=plotId, 
+        "title"=title, 
+        "thumbnail_path"=paste0(rel_pth, ".png"), 
+        "path"=paste0(rel_pth, ".pdf"),
+        stringsAsFactors = FALSE
+    )
+    return(newPlot)
 }
 
 doItAll <- function(opt) {
     bedlist = read.table(file=opt$bedfilelist, stringsAsFactors=FALSE)
     grl = GRangesList()
     for(i in seq_len(NROW(bedlist))){
-        if(file.exists(bedlist[i, 1])){
-            grl[[i]] = LOLA::readBed(bedlist[i, 1])
-            message("read BED: ", bedlist[i, 1])
-        }
+        bed_path = paste0(opt$outputfolder, "/../../../", bedlist[i, 1])
+        if(!file.exists(bed_path)) stop("File not found: ", bed_path)
+        message("reading BED: ", bed_path)
+        grl[[i]] = LOLA::readBed(bed_path)
     }
-    plots = data.frame(stringsAsFactors=F)
-    plotId = "regionCommonality"
-    plotBoth(paste0(opt$outputfolder, "/", opt$id, "_", plotId), 
-             plotRegionCommonality(calcRegionCommonality(grl)))
-    newPlot = data.frame("name"=plotId, 
-                         "caption"="BED region commonality in BED set")
-    plots = rbind(plots, newPlot)
-    # Note: names of the list elements MUST match what's defined in: https://github.com/databio/bbconf/blob/master/bbconf/const.py
-    bedsetmeta = list(
-        plots=plots
-    )
-    write(jsonlite::toJSON(bedsetmeta, pretty=TRUE), opt$json)
+    plotBoth("region_commonality", plotRegionCommonality(calcRegionCommonality(grl)))
+    print(paste0("done plotting "))
+    plots = getPlotReportDF("region_commonality", "BED region commonality in BED set")
+    # Note: names of the list elements MUST match what's defined in: https://github.com/databio/bbconf/blob/master/bbconf/schemas/bedsets_schema.yaml
+    write(jsonlite::toJSON(list(plots=plots), pretty=TRUE), opt$json)
     message("Saved JSON: ", opt$json)
 }
 
