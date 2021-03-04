@@ -24,30 +24,37 @@ import bbconf
 import pypiper
 import yacman
 
-parser = ArgumentParser(
-    description="A pipeline to produce sets of bed files (bedsets)")
+parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets)")
 
-parser.add_argument("-q", "--query",
-                    help="condition string to restrict bedfiles table select with",
-                    type=str)
-parser.add_argument("-v", "--query-val",
-                    help="condition values to populate condition with",
-                    type=str)
-parser.add_argument("-b", "--bedbase-config",
-                    type=str, required=False, default=None,
-                    help=f"path to the bedbase configuration file. "
-                         f"Optional if {CFG_ENV_VARS} env vars are set.")
-parser.add_argument("-n", "--bedset-name",
-                    help="name assigned to the bedset to be created", type=str)
-parser.add_argument("-g", "--genome",
-                    help="genome assembly of the BED set",
-                    type=str)
+parser.add_argument(
+    "-q",
+    "--query",
+    help="condition string to restrict bedfiles table select with",
+    type=str,
+)
+parser.add_argument(
+    "-v", "--query-val", help="condition values to populate condition with", type=str
+)
+parser.add_argument(
+    "-b",
+    "--bedbase-config",
+    type=str,
+    required=False,
+    default=None,
+    help=f"path to the bedbase configuration file. "
+    f"Optional if {CFG_ENV_VARS} env vars are set.",
+)
+parser.add_argument(
+    "-n", "--bedset-name", help="name assigned to the bedset to be created", type=str
+)
+parser.add_argument("-g", "--genome", help="genome assembly of the BED set", type=str)
 
 # add pypiper args to make pipeline looper compatible
-parser = pypiper.add_pypiper_args(parser,
-                                  groups=["pypiper"],
-                                  required=["--query", "--bedset_name", 
-                                            "--bedbase-config", "--genome"])
+parser = pypiper.add_pypiper_args(
+    parser,
+    groups=["pypiper"],
+    required=["--query", "--bedset_name", "--bedbase-config", "--genome"],
+)
 args = parser.parse_args()
 
 # Initialize bbc object
@@ -55,7 +62,8 @@ bbc = BedBaseConf(config_path=args.bedbase_config, database_only=True)
 
 # Create a folder to place pipeline logs
 logs_dir = os.path.abspath(
-    os.path.join(bbc.get_bedbuncher_output_path(), "bedbuncher_pipeline_logs"))
+    os.path.join(bbc.get_bedbuncher_output_path(), "bedbuncher_pipeline_logs")
+)
 if not os.path.exists(logs_dir):
     print("bedbuncher pipeline logs directory doesn't exist. Creating one...")
     os.makedirs(logs_dir)
@@ -98,15 +106,16 @@ def get_bedset_digest(sr):
 
 def mk_file_type(pth, title, md5sum):
     """
-    make file type object for the given file path and title 
-    
-    :param pth: abs path of the file 
+    make file type object for the given file path and title
+
+    :param pth: abs path of the file
     :param title: file title
     :param md5sum: bedset digest
-    :return: file type obj 
+    :return: file type obj
     """
-    rel_to = os.path.abspath(os.path.join(bbc.get_bedbuncher_output_path(), 
-                                            os.pardir,os.pardir))
+    rel_to = os.path.abspath(
+        os.path.join(bbc.get_bedbuncher_output_path(), os.pardir, os.pardir)
+    )
     return {"path": os.path.relpath(pth, rel_to), "title": title}
 
 
@@ -117,8 +126,7 @@ def main():
     query_val.append(args.genome)
     query = args.query + " AND other->>'genome'=%s"
     # Use bbconf method to look for files in the database
-    search_results = bbc.bed.select(
-        condition=query, condition_val=query_val)
+    search_results = bbc.bed.select(condition=query, condition_val=query_val)
     print("query:", query)
     print("query_val", query_val)
     nhits = len(search_results)
@@ -131,7 +139,8 @@ def main():
 
     # check for presence of the output folder and create it if needed
     output_folder = os.path.abspath(
-        os.path.join(bbc.get_bedbuncher_output_path(), bedset_digest))
+        os.path.join(bbc.get_bedbuncher_output_path(), bedset_digest)
+    )
     if not os.path.exists(output_folder):
         pm.info(f"Output directory does not exist. Creating: {output_folder}")
         os.makedirs(output_folder)
@@ -142,43 +151,50 @@ def main():
     if not os.path.exists(hub_folder):
         os.makedirs(hub_folder)
     # write hub.txt file
-    hub_txt = {"hub": "BEDBASE_"+args.bedset_name,
-            "shortLabel": "BEDBASE_"+args.bedset_name,
-            "longLabel": args.bedset_name + " signal tracks",
-            "genomesFile": "genomes.txt",
-            "email": "bx2ur@virginia.edu",
-            "descriptionUrl": "http://www.bedbase.org/"
-            }
-    f = open(os.path.join(hub_folder, "hub.txt"),"w")
-    f.writelines("{}\t{}\n".format(k,v) for k, v in hub_txt.items()) 
+    hub_txt = {
+        "hub": "BEDBASE_" + args.bedset_name,
+        "shortLabel": "BEDBASE_" + args.bedset_name,
+        "longLabel": args.bedset_name + " signal tracks",
+        "genomesFile": "genomes.txt",
+        "email": "bx2ur@virginia.edu",
+        "descriptionUrl": "http://www.bedbase.org/",
+    }
+    f = open(os.path.join(hub_folder, "hub.txt"), "w")
+    f.writelines("{}\t{}\n".format(k, v) for k, v in hub_txt.items())
     f.close()
     # write genomes.txt and trackDb.txt
 
-    for bedfiles in search_results:        
-        genomes_txt = {"genome": args.genome,
-            "trackDb": os.path.join(args.genome, "trackDb.txt")}
-        f = open(os.path.join(hub_folder, "genomes.txt"),"w")
-        f.writelines("{}\t{}\n".format(k,v) for k, v in genomes_txt.items())
+    for bedfiles in search_results:
+        genomes_txt = {
+            "genome": args.genome,
+            "trackDb": os.path.join(args.genome, "trackDb.txt"),
+        }
+        f = open(os.path.join(hub_folder, "genomes.txt"), "w")
+        f.writelines("{}\t{}\n".format(k, v) for k, v in genomes_txt.items())
         f.close()
 
-        genome_folder = os.path.join(hub_folder,args.genome)
+        genome_folder = os.path.join(hub_folder, args.genome)
         if not os.path.exists(genome_folder):
             os.makedirs(genome_folder)
-        
-        trackDb_txt = {"track": bedfiles["name"],
-                        "type": "bigBed",
-                        "bigDataUrl": "http://data.bedbase.org/bigbed_files/" + bedfiles["name"] + ".bigBed",
-                        "shortLabel": bedfiles["name"],
-                        "longLabel": bedfiles["other"]["description"],
-                        "visibility": "full",
-                        }
-        mode = "a" if os.path.exists(os.path.join(genome_folder, "trackDb.txt")) else "w"
 
-        f = open(os.path.join(genome_folder, "trackDb.txt"),mode)
-        f.writelines("{}\t{}\n".format(k,v) for k, v in trackDb_txt.items())
+        trackDb_txt = {
+            "track": bedfiles["name"],
+            "type": "bigBed",
+            "bigDataUrl": "http://data.bedbase.org/bigbed_files/"
+            + bedfiles["name"]
+            + ".bigBed",
+            "shortLabel": bedfiles["name"],
+            "longLabel": bedfiles["other"]["description"],
+            "visibility": "full",
+        }
+        mode = (
+            "a" if os.path.exists(os.path.join(genome_folder, "trackDb.txt")) else "w"
+        )
+
+        f = open(os.path.join(genome_folder, "trackDb.txt"), mode)
+        f.writelines("{}\t{}\n".format(k, v) for k, v in trackDb_txt.items())
         f.writelines("\n")
         f.close()
-            
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
@@ -188,22 +204,30 @@ def main():
     pep_folder_path = os.path.join(output_folder, args.bedset_name + "_PEP")
     if not os.path.exists(pep_folder_path):
         os.makedirs(pep_folder_path)
-    
+
     # define column names for annotation sheet based on LOLA requirements
     meta_list = [
-        "genome", "protocol", "cell_type",
-        "tissue", "antibody", "treatment",
-        "data_source", "description"
+        "genome",
+        "protocol",
+        "cell_type",
+        "tissue",
+        "antibody",
+        "treatment",
+        "data_source",
+        "description",
     ]
     bedset_pep_df = pd.DataFrame(
-        columns=["sample_name", "output_file_path", "md5sum"] + meta_list)
+        columns=["sample_name", "output_file_path", "md5sum"] + meta_list
+    )
     output_bed_path = "source1"
     for bedfiles in search_results:
         file_fmt = "bed"
-        pep_metadata = {"sample_name": bedfiles["name"],
-                        "output_file_path": output_bed_path,
-                        "md5sum": bedfiles["md5sum"],
-                        "file_format": file_fmt}
+        pep_metadata = {
+            "sample_name": bedfiles["name"],
+            "output_file_path": output_bed_path,
+            "md5sum": bedfiles["md5sum"],
+            "file_format": file_fmt,
+        }
         for key in meta_list:
             if key in bedfiles["other"].keys():
                 bed_file_meta = bedfiles["other"][key]
@@ -216,12 +240,11 @@ def main():
     bedset_pep_path = os.path.join(pep_folder_path, bedset_annotation_sheet)
     bedset_pep_df.to_csv(bedset_pep_path, index=False)
 
-    numeric_results = [k for k, v in bbc.bed.schema.items()
-                       if v["type"] == "number"]
+    numeric_results = [k for k, v in bbc.bed.schema.items() if v["type"] == "number"]
     # Create df with bedfiles metadata
     bedstats_df = pd.DataFrame(columns=["md5sum", "name"] + numeric_results)
 
-    # Access elements in search object produced by bbc.search 
+    # Access elements in search object produced by bbc.search
     # (both in metadata and statistics sections keys)
     pm.info("Reading individual BED file statistics from the database")
     for bed_file in search_results:
@@ -256,7 +279,9 @@ def main():
     means_df = pd.DataFrame(bedfiles_means, columns=["Mean"])
     stdv_df = pd.DataFrame(bedfiles_stdv, columns=["Standard Deviation"])
     bedset_df = pd.concat([means_df, stdv_df], axis=1)
-    bedset_stats_path = os.path.join(output_folder, args.bedset_name + "_summaryStats.csv")
+    bedset_stats_path = os.path.join(
+        output_folder, args.bedset_name + "_summaryStats.csv"
+    )
     pm.info(f"Saving bedset statistics to: {bedset_stats_path}")
     bedset_df.to_csv(bedset_stats_path)
 
@@ -267,12 +292,13 @@ def main():
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
-        bedfile_target = os.readlink(bedfile_path) \
-            if os.path.islink(bedfile_path) else bedfile_path
+        bedfile_target = (
+            os.readlink(bedfile_path) if os.path.islink(bedfile_path) else bedfile_path
+        )
         txt_file.write("{}\n".format(bedfile_target))
     txt_file.close()
     pm.clean_add(txt_bed_path)
-    
+
     # iGD database
     igd_folder_name = args.bedset_name + "_igd"
     igd_folder_path = os.path.join(output_folder, igd_folder_name)
@@ -286,20 +312,27 @@ def main():
 
     # TAR the iGD database folder
     igd_tar_archive_path = os.path.abspath(os.path.join(igd_folder_path + ".tar.gz"))
-    with tarfile.open(igd_tar_archive_path, mode="w:gz", dereference=True, debug=3) as igd_tar:
+    with tarfile.open(
+        igd_tar_archive_path, mode="w:gz", dereference=True, debug=3
+    ) as igd_tar:
         pm.info(f"Creating iGD database TAR archive: {igd_tar_archive_path}")
         igd_tar.add(igd_folder_path, arcname="", recursive=True, filter=flatten)
 
     # plot
     rscript_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools",
-        "bedsetStat.R")
-    assert os.path.exists(rscript_path), \
-        FileNotFoundError(f"'{rscript_path}' script not found")
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "tools",
+        "bedsetStat.R",
+    )
+    assert os.path.exists(rscript_path), FileNotFoundError(
+        f"'{rscript_path}' script not found"
+    )
     json_file_path = os.path.join(output_folder, args.bedset_name + ".json")
-    command = f"Rscript {rscript_path} --outputfolder={output_folder} " \
-              f"--bedfilelist={txt_bed_path} --id={args.bedset_name} " \
-              f"--json={json_file_path}"
+    command = (
+        f"Rscript {rscript_path} --outputfolder={output_folder} "
+        f"--bedfilelist={txt_bed_path} --id={args.bedset_name} "
+        f"--json={json_file_path}"
+    )
     pm.run(cmd=command, target=json_file_path)
 
     # create yaml config file for newly produced bedset
@@ -311,37 +344,45 @@ def main():
         y.pep_version = "2.0.0"
         y.sample_table = bedset_annotation_sheet
         y.looper = {}
-        y.looper.output_dir = logs_dir 
+        y.looper.output_dir = logs_dir
         y.iGD_db = os.path.join(igd_folder_name, args.bedset_name + ".igd")
         y.iGD_index = os.path.join(igd_folder_name, args.bedset_name + "_index.tsv")
         y.sample_modifiers = {}
         y.sample_modifiers.append = {}
         y.sample_modifiers.append.output_file_path = "source1"
         y.sample_modifiers.derive = {}
-        y.sample_modifiers.derive.attributes = ["output_file_path"] 
+        y.sample_modifiers.derive.attributes = ["output_file_path"]
         y.sample_modifiers.derive.sources = {}
         y.sample_modifiers.derive.sources = {"source1": "'{sample_name}{file_format}'"}
 
     # Create a tar archive using bed files original paths and bedset PEP
     tar_archive_file = os.path.abspath(
-        os.path.join(output_folder, args.bedset_name + ".tar"))
-    tar_archive = tarfile.open(
-        tar_archive_file, mode="w:", dereference=True, debug=3)
+        os.path.join(output_folder, args.bedset_name + ".tar")
+    )
+    tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
     pm.info(f"Creating TAR archive: {tar_archive_file}")
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
         if not os.path.isabs(bedfile_path):
-            bedfile_path = os.path.realpath(os.path.join(bbc.get_bedbuncher_output_path(), 
-                                                        os.pardir,os.pardir, bedfile_path))
-        tar_archive.add(bedfile_path, arcname=os.path.basename(bedfile_path),
-                        recursive=False, filter=None)
+            bedfile_path = os.path.realpath(
+                os.path.join(
+                    bbc.get_bedbuncher_output_path(), os.pardir, os.pardir, bedfile_path
+                )
+            )
+        tar_archive.add(
+            bedfile_path,
+            arcname=os.path.basename(bedfile_path),
+            recursive=False,
+            filter=None,
+        )
     tar_archive.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     tar_archive.close()
 
     # create a separate TAR.gz archive for the PEP annotation and config files
     pep_tar_archive_path = os.path.abspath(os.path.join(pep_folder_path + ".tar"))
-    with tarfile.open(pep_tar_archive_path, mode="w:gz", dereference=True, debug=3) \
-            as pep_tar:
+    with tarfile.open(
+        pep_tar_archive_path, mode="w:gz", dereference=True, debug=3
+    ) as pep_tar:
         pm.info(f"Creating PEP TAR archive: {pep_tar_archive_path}")
         pep_tar.add(pep_folder_path, arcname="", recursive=True, filter=flatten)
     pm.clean_add(pep_folder_path)
@@ -358,32 +399,52 @@ def main():
 
     # TODO: source the key names from bbconf package?
     bedset_summary_info.update(
-        {"name": args.bedset_name,
-         "bedset_means": means_dictionary,
-         "bedset_standard_deviation": stdv_dictionary,
-         "bedset_tar_archive_path": mk_file_type(
-             tar_archive_file, "TAR archive with BED files in this BED set", bedset_digest),
-         "bedset_bedfiles_gd_stats": mk_file_type(
-             bedfiles_stats_path, "Statistics of the BED files in this BED set", bedset_digest),
-         "bedset_gd_stats": mk_file_type(
-             bedset_stats_path, "Means and standard deviations of the BED files in this BED set", bedset_digest),
-         "bedset_igd_database_path": mk_file_type(
-             igd_tar_archive_path, "iGD database", bedset_digest),
-         "bedset_pep": mk_file_type(
-             pep_tar_archive_path, "PEP including BED files in this BED set", bedset_digest),
-         "md5sum": bedset_digest, 
-         "hubfile_path": mk_file_type(
-             os.path.join(hub_folder, "hub.txt"), "hub.txt file for this BED set", bedset_digest),
-         "genome": args.genome
-         }, 
+        {
+            "name": args.bedset_name,
+            "bedset_means": means_dictionary,
+            "bedset_standard_deviation": stdv_dictionary,
+            "bedset_tar_archive_path": mk_file_type(
+                tar_archive_file,
+                "TAR archive with BED files in this BED set",
+                bedset_digest,
+            ),
+            "bedset_bedfiles_gd_stats": mk_file_type(
+                bedfiles_stats_path,
+                "Statistics of the BED files in this BED set",
+                bedset_digest,
+            ),
+            "bedset_gd_stats": mk_file_type(
+                bedset_stats_path,
+                "Means and standard deviations of the BED files in this BED set",
+                bedset_digest,
+            ),
+            "bedset_igd_database_path": mk_file_type(
+                igd_tar_archive_path, "iGD database", bedset_digest
+            ),
+            "bedset_pep": mk_file_type(
+                pep_tar_archive_path,
+                "PEP including BED files in this BED set",
+                bedset_digest,
+            ),
+            "md5sum": bedset_digest,
+            "hubfile_path": mk_file_type(
+                os.path.join(hub_folder, "hub.txt"),
+                "hub.txt file for this BED set",
+                bedset_digest,
+            ),
+            "genome": args.genome,
+        },
     )
 
     # select only first element of every list due to JSON produced by R putting
     # every value into a list
-    data = {k.lower(): v[0] if (isinstance(v, list))
-            else v for k, v in bedset_summary_info.items()}
+    data = {
+        k.lower(): v[0] if (isinstance(v, list)) else v
+        for k, v in bedset_summary_info.items()
+    }
     bedset_id = bbc.bedset.report(
-        record_identifier=bedset_digest, values=data, return_id=True)
+        record_identifier=bedset_digest, values=data, return_id=True
+    )
     for hit_id in hit_ids:
         bbc.report_relationship(bedset_id=bedset_id, bedfile_id=hit_id)
     pm.stop_pipeline()
