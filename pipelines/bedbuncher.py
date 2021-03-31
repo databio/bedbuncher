@@ -13,6 +13,7 @@ import sys
 import pandas as pd
 import json
 import tarfile
+import requests
 
 from argparse import ArgumentParser
 from bbconf.const import *
@@ -132,6 +133,7 @@ def main():
     search_results = bbc.bed.select(condition=query, condition_val=query_val)
     print("query:", query)
     print("query_val", query_val)
+    print("search_results", search_results)
     nhits = len(search_results)
     if nhits < 2:
         raise BedBaseConfError(f"{nhits} BED files match the query: {query}")
@@ -296,7 +298,7 @@ def main():
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
         bedfile_target = (
-            os.readlink(bedfile_path) if os.path.islink(bedfile_path) else bedfile_path
+            os.readlink(bedfile_path) if os.path.islink(bedfile_path) else os.path.abspath(bedfile_path)
         )
         txt_file.write("{}\n".format(bedfile_target))
     txt_file.close()
