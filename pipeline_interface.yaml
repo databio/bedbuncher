@@ -4,5 +4,5 @@ var_templates:
   path: "{looper.piface_dir}/pipelines/bedbuncher.py"
 # input_schema: http://schema.databio.org/pipelines/bedbuncher.yaml
 command_template: >
-  {pipeline.var_templates.path} --query {sample.query} --query-val {sample.query_val} --bedset-name {sample.bedset_name}
+  {pipeline.var_templates.path} --query {sample.query} --query-val {sample.query_val} --bedset-name {sample.bedset_name} --genome {sample.genome}
   {% if sample.bedbase_config is defined %} --bedbase-config {sample.bedbase_config} {% endif %}
