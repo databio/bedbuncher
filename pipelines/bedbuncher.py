@@ -123,8 +123,11 @@ def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
     # add genome to the query
     query_val = [args.query_val]
-    query_val.append(args.genome)
-    query = args.query + " AND other->>'genome'=%s"
+    genome_digest = requests.get(
+            f"http://refgenomes.databio.org/genomes/genome_digest/{args.genome}"
+        ).text
+    query_val.append(genome_digest)
+    query = args.query + f" AND genome->>'{args.genome}'=%s"
     # Use bbconf method to look for files in the database
     search_results = bbc.bed.select(condition=query, condition_val=query_val)
     print("query:", query)
@@ -432,7 +435,7 @@ def main():
                 "hub.txt file for this BED set",
                 bedset_digest,
             ),
-            "genome": args.genome,
+            "genome": {args.genome: genome_digest},
         },
     )
 
