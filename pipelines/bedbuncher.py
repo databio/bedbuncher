@@ -126,9 +126,9 @@ def main():
     query_val = [args.query_val]
     genome_digest = requests.get(
             f"http://refgenomes.databio.org/genomes/genome_digest/{args.genome}"
-        ).text
+        ).text.strip('""')
     query_val.append(genome_digest)
-    query = args.query + f" AND genome->>'{args.genome}'=%s"
+    query = args.query + f" AND genome->>'digest'=%s"
     # Use bbconf method to look for files in the database
     search_results = bbc.bed.select(condition=query, condition_val=query_val)
     print("query:", query)
