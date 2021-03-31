@@ -437,7 +437,10 @@ def main():
                 "hub.txt file for this BED set",
                 bedset_digest,
             ),
-            "genome": {args.genome: genome_digest},
+            "genome": {
+                "alias": args.genome,
+                "digest": genome_digest,
+            }
         },
     )
 
