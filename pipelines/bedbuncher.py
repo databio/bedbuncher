@@ -5,24 +5,23 @@ bedset paths, statistics and PEP generating pipeline
 
 __author__ = ["Jose Verdezoto", "Michal Stolarczyk"]
 __email__ = "jev4xy@virginia.edu"
-__version__ = "0.0.2-dev"
+__version__ = "0.0.2-orm"
 
-import re
-import os
-import sys
-import pandas as pd
 import json
+import os
+import re
+import sys
 import tarfile
-
 from argparse import ArgumentParser
-from bbconf.const import *
-from bbconf.exceptions import BedBaseConfError
-from bbconf import BedBaseConf
 from hashlib import md5
 
 import bbconf
+import pandas as pd
 import pypiper
 import yacman
+from bbconf import BedBaseConf
+from bbconf.const import *
+from bbconf.exceptions import BedBaseConfError
 
 parser = ArgumentParser(description="A pipeline to produce sets of bed files (bedsets)")
 
