@@ -28,12 +28,13 @@ parser = ArgumentParser(description="A pipeline to produce sets of bed files (be
 parser.add_argument(
     "-q",
     "--query",
+    action="append",
+    required=True,
     help="condition string to restrict bedfiles table select with",
     type=str,
+    nargs="+",
 )
-parser.add_argument(
-    "-v", "--query-val", help="condition values to populate condition with", type=str
-)
+
 parser.add_argument(
     "-b",
     "--bedbase-config",
@@ -99,7 +100,7 @@ def get_bedset_digest(sr):
     :return str: bedset digest
     """
     m = md5()
-    m.update(";".join(sorted([f["md5sum"] for f in sr])).encode("utf-8"))
+    m.update(";".join(sorted([f.md5sum for f in sr])).encode("utf-8"))
     return m.hexdigest()
 
 
@@ -118,21 +119,48 @@ def mk_file_type(pth, title, md5sum):
     return {"path": os.path.relpath(pth, rel_to), "title": title}
 
 
+def process_filter_conditions(filter_arg):
+    """
+    Parse user-provided query
+
+    :param List[List[str]] filter_arg: user-provided query argument, e.g.
+        [['regions_no gt 1000'], ['gc_content gt 0.5']]
+    :return [(str, str, str)]: parsed query
+    """
+    # possible input data structures (that should lead to the same result)
+    # [['regions_no gt 1000', 'gc_content gt 0.5']]
+    # [['regions_no gt 1000'], ['gc_content gt 0.5']]
+    # TODO: accept either '>' or 'gt'
+
+    parsed_filters = []
+    filter_list = []
+    for i in filter_arg or []:
+        filter_list.extend(i)
+    for filter_str in filter_list:
+        filter_elements = filter_str.split(" ")
+        assert len(filter_elements) == 3, ValueError(
+            "Query has to have three space-separated elements, e.g. 'regions_no > 0.5'"
+        )
+        col, operator, value = filter_elements
+        parsed_filters.append((col, operator, value))
+    return parsed_filters
+
+
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
-    # add genome to the query
-    query_val = [args.query_val]
-    query_val.append(args.genome)
-    query = args.query + " AND other->>'genome'=%s"
-    # Use bbconf method to look for files in the database
-    search_results = bbc.bed.select(condition=query, condition_val=query_val)
-    print("query:", query)
-    print("query_val", query_val)
+    pm.debug("query: ", args.query)
+    processed_query = process_filter_conditions(args.query)
+    pm.debug(f"processed query: {processed_query}")
+    search_results = bbc.bed.select(
+        json_filter_conditions=[("other", "genome", args.genome)],
+        filter_conditions=processed_query,
+    )
     nhits = len(search_results)
     if nhits < 2:
-        raise BedBaseConfError(f"{nhits} BED files match the query: {query}")
+        raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}")
     pm.info(f"{nhits} BED files match the query")
-    hit_ids = [i["id"] for i in search_results]
+
+    hit_ids = [i.id for i in search_results]
     bedset_digest = get_bedset_digest(search_results)
     pm.info(f"bedset digest: {bedset_digest}")
 
@@ -163,7 +191,7 @@ def main():
     f.close()
     # write genomes.txt and trackDb.txt
 
-    for bedfiles in search_results:
+    for bedfile in search_results:
         genomes_txt = {
             "genome": args.genome,
             "trackDb": os.path.join(args.genome, "trackDb.txt"),
@@ -177,13 +205,13 @@ def main():
             os.makedirs(genome_folder)
 
         trackDb_txt = {
-            "track": bedfiles["name"],
+            "track": bedfile.name,
             "type": "bigBed",
             "bigDataUrl": "http://data.bedbase.org/bigbed_files/"
-            + bedfiles["name"]
+            + bedfile.name
             + ".bigBed",
-            "shortLabel": bedfiles["name"],
-            "longLabel": bedfiles["other"]["description"],
+            "shortLabel": bedfile.name,
+            "longLabel": bedfile.other["description"],
             "visibility": "full",
         }
         mode = (
@@ -219,17 +247,17 @@ def main():
         columns=["sample_name", "output_file_path", "md5sum"] + meta_list
     )
     output_bed_path = "source1"
-    for bedfiles in search_results:
+    for bedfile in search_results:
         file_fmt = "bed"
         pep_metadata = {
-            "sample_name": bedfiles["name"],
+            "sample_name": bedfile.name,
             "output_file_path": output_bed_path,
-            "md5sum": bedfiles["md5sum"],
+            "md5sum": bedfile.md5sum,
             "file_format": file_fmt,
         }
         for key in meta_list:
-            if key in bedfiles["other"].keys():
-                bed_file_meta = bedfiles["other"][key]
+            if key in bedfile.other.keys():
+                bed_file_meta = bedfile.other[key]
                 pep_metadata.update({key: bed_file_meta})
             else:
                 pep_metadata.update({key: ""})
@@ -247,12 +275,12 @@ def main():
     # (both in metadata and statistics sections keys)
     pm.info("Reading individual BED file statistics from the database")
     for bed_file in search_results:
-        bid = bed_file["name"]
-        data = {"md5sum": bed_file["md5sum"], "name": bid}
+        bid = bed_file.name
+        data = {"md5sum": bed_file.md5sum, "name": bid}
         pm.info(f"Processing: {bid}")
         for key in numeric_results:
             try:
-                bed_file_stat = bed_file[key]
+                bed_file_stat = getattr(bed_file, key)
             except KeyError:
                 pm.info(f"'{key}' statistic not available for: {bid}")
             else:
@@ -264,11 +292,11 @@ def main():
     pm.info("Calculating bedset statistics")
     bedfiles_means = bedstats_df.mean(axis=0)
     bedfiles_stdv = bedstats_df.std(axis=0)
-    print(f"bedstats_df: {bedstats_df}")
-    print(f"bedfiles_stdv: {bedfiles_stdv}")
+    pm.debug(f"bedstats_df: {bedstats_df}")
+    pm.debug(f"bedfiles_stdv: {bedfiles_stdv}")
     means_dictionary = dict(bedfiles_means)
     stdv_dictionary = dict(bedfiles_stdv)
-    print(f"stdv_dictionary: {stdv_dictionary}")
+    pm.debug(f"stdv_dictionary: {stdv_dictionary}")
     # Save bedstats_df matrix as csv file into the user-defined output_folder
     bedfiles_stats_path = os.path.join(output_folder, args.bedset_name + "_bedstat.csv")
     pm.info(f"Saving bedfiles statistics to: {bedfiles_stats_path}")
@@ -290,7 +318,7 @@ def main():
     txt_bed_path = os.path.join(output_folder, args.bedset_name + ".txt")
     txt_file = open(txt_bed_path, "a")
     for files in search_results:
-        bedfile_path = files["bedfile"]["path"]
+        bedfile_path = files.bedfile["path"]
         bedfile_target = (
             os.readlink(bedfile_path) if os.path.islink(bedfile_path) else bedfile_path
         )
@@ -361,7 +389,7 @@ def main():
     tar_archive = tarfile.open(tar_archive_file, mode="w:", dereference=True, debug=3)
     pm.info(f"Creating TAR archive: {tar_archive_file}")
     for files in search_results:
-        bedfile_path = files["bedfile"]["path"]
+        bedfile_path = files.bedfile["path"]
         if not os.path.isabs(bedfile_path):
             bedfile_path = os.path.realpath(
                 os.path.join(
