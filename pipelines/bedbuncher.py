@@ -130,7 +130,21 @@ def process_filter_conditions(filter_arg):
     # possible input data structures (that should lead to the same result)
     # [['regions_no gt 1000', 'gc_content gt 0.5']]
     # [['regions_no gt 1000'], ['gc_content gt 0.5']]
-    # TODO: accept either '>' or 'gt'
+
+    def _get_operator(operator):
+        operators_dict = {
+            "==": "eq",
+            "<": "lt",
+            ">": "gt",
+            ">=": "ge",
+            "in_": "in",
+            "like": "like",
+        }
+        if operator in operators_dict.values():
+            return operator
+        elif operator in operators_dict.keys():
+            return operators_dict[operator]
+        raise NotImplemented(f"Operation not supported: {operator}")
 
     parsed_filters = []
     filter_list = []
@@ -142,7 +156,7 @@ def process_filter_conditions(filter_arg):
             "Query has to have three space-separated elements, e.g. 'regions_no > 0.5'"
         )
         col, operator, value = filter_elements
-        parsed_filters.append((col, operator, value))
+        parsed_filters.append((col, _get_operator(operator), value))
     return parsed_filters
 
 
