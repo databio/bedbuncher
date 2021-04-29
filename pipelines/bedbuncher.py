@@ -5,7 +5,7 @@ bedset paths, statistics and PEP generating pipeline
 
 __author__ = ["Jose Verdezoto", "Michal Stolarczyk"]
 __email__ = "jev4xy@virginia.edu"
-__version__ = "0.0.2-dev"
+__version__ = "0.0.3-dev"
 
 import re
 import os
@@ -105,19 +105,40 @@ def get_bedset_digest(sr):
     return m.hexdigest()
 
 
-def mk_file_type(pth, title, md5sum):
+def mk_file_type(pth, title):
     """
     make file type object for the given file path and title
 
     :param pth: abs path of the file
     :param title: file title
-    :param md5sum: bedset digest
     :return: file type obj
     """
     rel_to = os.path.abspath(
         os.path.join(bbc.get_bedbuncher_output_path(), os.pardir, os.pardir)
     )
-    return {"path": os.path.relpath(pth, rel_to), "title": title}
+    return {
+        "path": os.path.relpath(pth, rel_to),
+        "size": get_file_size(pth),
+        "title": title,
+    }
+
+
+def convert_unit(size_in_bytes):
+    """Convert the size from bytes to other units like KB, MB or GB"""
+    if size_in_bytes < 1024:
+        return str(size_in_bytes) + "bytes"
+    elif size_in_bytes in range(1024, 1024 * 1024):
+        return str(round(size_in_bytes / 1024, 2)) + "KB"
+    elif size_in_bytes in range(1024 * 1024, 1024 * 1024 * 1024):
+        return str(round(size_in_bytes / (1024 * 1024))) + "MB"
+    elif size_in_bytes >= 1024 * 1024 * 1024:
+        return str(round(size_in_bytes / (1024 * 1024 * 1024))) + "GB"
+
+
+def get_file_size(file_name):
+    """Get file in size in given unit like KB, MB or GB"""
+    size = os.path.getsize(file_name)
+    return convert_unit(size)
 
 
 def main():
@@ -125,10 +146,11 @@ def main():
     # add genome to the query
     query_val = [args.query_val]
     genome_digest = requests.get(
-            f"http://refgenomes.databio.org/genomes/genome_digest/{args.genome}"
-        ).text.strip('""')
+        f"http://refgenomes.databio.org/genomes/genome_digest/{args.genome}"
+    ).text.strip('""')
     query_val.append(genome_digest)
     query = args.query + f" AND genome->>'digest'=%s"
+
     # Use bbconf method to look for files in the database
     search_results = bbc.bed.select(condition=query, condition_val=query_val)
     print("query:", query)
@@ -298,7 +320,9 @@ def main():
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
         bedfile_target = (
-            os.readlink(bedfile_path) if os.path.islink(bedfile_path) else os.path.abspath(bedfile_path)
+            os.readlink(bedfile_path)
+            if os.path.islink(bedfile_path)
+            else os.path.abspath(bedfile_path)
         )
         txt_file.write("{}\n".format(bedfile_target))
     txt_file.close()
@@ -411,36 +435,31 @@ def main():
             "bedset_tar_archive_path": mk_file_type(
                 tar_archive_file,
                 "TAR archive with BED files in this BED set",
-                bedset_digest,
             ),
             "bedset_bedfiles_gd_stats": mk_file_type(
                 bedfiles_stats_path,
                 "Statistics of the BED files in this BED set",
-                bedset_digest,
             ),
             "bedset_gd_stats": mk_file_type(
                 bedset_stats_path,
                 "Means and standard deviations of the BED files in this BED set",
-                bedset_digest,
             ),
             "bedset_igd_database_path": mk_file_type(
-                igd_tar_archive_path, "iGD database", bedset_digest
+                igd_tar_archive_path, "iGD database"
             ),
             "bedset_pep": mk_file_type(
                 pep_tar_archive_path,
                 "PEP including BED files in this BED set",
-                bedset_digest,
             ),
             "md5sum": bedset_digest,
             "hubfile_path": mk_file_type(
                 os.path.join(hub_folder, "hub.txt"),
                 "hub.txt file for this BED set",
-                bedset_digest,
             ),
             "genome": {
                 "alias": args.genome,
                 "digest": genome_digest,
-            }
+            },
         },
     )
 
