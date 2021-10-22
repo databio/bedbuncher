@@ -34,6 +34,9 @@ parser.add_argument(
     type=str,
 )
 parser.add_argument(
+    "-o", "--operator", help="query operator", type=str
+)
+parser.add_argument(
     "-v", "--query-val", help="condition values to populate condition with", type=str
 )
 parser.add_argument(
@@ -143,24 +146,37 @@ def get_file_size(file_name):
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
-    # add genome to the query
-    query_val = [args.query_val]
+    
     genome_digest = requests.get(
         f"http://refgenomes.databio.org/genomes/genome_digest/{args.genome}"
     ).text.strip('""')
-    query_val.append(genome_digest)
-    query = args.query + f" AND genome->>'digest'=%s"
+
+    # add genome to the query NEED FIX
+    # query_val = [args.query_val]
+    # query_val.append(genome_digest)
+    # query = args.query + f" AND genome->>'digest'=%s"
 
     # Use bbconf method to look for files in the database
-    search_results = bbc.bed.select(condition=query, condition_val=query_val)
-    print("query:", query)
-    print("query_val", query_val)
-    print("search_results", search_results)
-    nhits = len(search_results)
+    keys = [k for k, v in bbc.bed.schema.items()]
+    
+    print(args.operator.split(','), args.query_val.split(','))
+    query_val = {args.operator.split(',')[i]: args.query_val.split(',')[i] for i in range(len(args.operator.split(',')))}
+    print ("Resultant dictionary is : " +  str(query_val))
+    if len(args.operator.split(',')) > 1:
+        search_results_ids = bbc.bed.select_txt(columns=["id"], filter_templ=args.query, filter_params = query_val)
+        search_results = bbc.bed.select_txt(columns=keys, filter_templ=args.query, filter_params = query_val)
+    else:
+        search_results_ids = bbc.bed.select(columns=["id"], filter_conditions=[(args.query, args.operator, args.query_val)])
+        search_results = bbc.bed.select(columns = keys, filter_conditions=[(args.query, args.operator, args.query_val)])
+    
+    nhits = len(search_results_ids)
+    hit_ids = [list(x) for x in search_results_ids]
     if nhits < 2:
-        raise BedBaseConfError(f"{nhits} BED files match the query: {query}")
+        raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}, {args.operator}, {args.query_val}")
     pm.info(f"{nhits} BED files match the query")
-    hit_ids = [i["id"] for i in search_results]
+    
+    search_results = list(map(lambda x: dict(zip(keys, x)), search_results))
+
     bedset_digest = get_bedset_digest(search_results)
     pm.info(f"bedset digest: {bedset_digest}")
 
@@ -472,6 +488,7 @@ def main():
     bedset_id = bbc.bedset.report(
         record_identifier=bedset_digest, values=data, return_id=True
     )
+    print("bedset_id:", bedset_id)
     for hit_id in hit_ids:
         bbc.report_relationship(bedset_id=bedset_id, bedfile_id=hit_id)
     pm.stop_pipeline()
