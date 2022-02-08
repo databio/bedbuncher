@@ -33,9 +33,7 @@ parser.add_argument(
     help="condition string to restrict bedfiles table select with",
     type=str,
 )
-parser.add_argument(
-    "-o", "--operator", help="query operator", type=str
-)
+parser.add_argument("-o", "--operator", help="query operator", type=str)
 parser.add_argument(
     "-v", "--query-val", help="condition values to populate condition with", type=str
 )
@@ -146,7 +144,7 @@ def get_file_size(file_name):
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
-    
+
     genome_digest = requests.get(
         f"http://refgenomes.databio.org/genomes/genome_digest/{args.genome}"
     ).text.strip('""')
@@ -158,23 +156,38 @@ def main():
 
     # Use bbconf method to look for files in the database
     keys = [k for k, v in bbc.bed.schema.items()]
-    
-    print(args.operator.split(','), args.query_val.split(','))
-    query_val = {args.operator.split(',')[i]: args.query_val.split(',')[i] for i in range(len(args.operator.split(',')))}
-    print ("Resultant dictionary is : " +  str(query_val))
-    if len(args.operator.split(',')) > 1:
-        search_results_ids = bbc.bed.select_txt(columns=["id"], filter_templ=args.query, filter_params = query_val)
-        search_results = bbc.bed.select_txt(columns=keys, filter_templ=args.query, filter_params = query_val)
+
+    print(args.operator.split(","), args.query_val.split(","))
+    query_val = {
+        args.operator.split(",")[i]: args.query_val.split(",")[i]
+        for i in range(len(args.operator.split(",")))
+    }
+    print("Resultant dictionary is : " + str(query_val))
+    if len(args.operator.split(",")) > 1:
+        search_results_ids = bbc.bed.select_txt(
+            columns=["id"], filter_templ=args.query, filter_params=query_val
+        )
+        search_results = bbc.bed.select_txt(
+            columns=keys, filter_templ=args.query, filter_params=query_val
+        )
     else:
-        search_results_ids = bbc.bed.select(columns=["id"], filter_conditions=[(args.query, args.operator, args.query_val)])
-        search_results = bbc.bed.select(columns = keys, filter_conditions=[(args.query, args.operator, args.query_val)])
-    
+        search_results_ids = bbc.bed.select(
+            columns=["id"],
+            filter_conditions=[(args.query, args.operator, args.query_val)],
+        )
+        search_results = bbc.bed.select(
+            columns=keys,
+            filter_conditions=[(args.query, args.operator, args.query_val)],
+        )
+
     nhits = len(search_results_ids)
     hit_ids = [list(x) for x in search_results_ids]
     if nhits < 2:
-        raise BedBaseConfError(f"{nhits} BED files match the query: {args.query}, {args.operator}, {args.query_val}")
+        raise BedBaseConfError(
+            f"{nhits} BED files match the query: {args.query}, {args.operator}, {args.query_val}"
+        )
     pm.info(f"{nhits} BED files match the query")
-    
+
     search_results = list(map(lambda x: dict(zip(keys, x)), search_results))
 
     bedset_digest = get_bedset_digest(search_results)
@@ -187,57 +200,6 @@ def main():
     if not os.path.exists(output_folder):
         pm.info(f"Output directory does not exist. Creating: {output_folder}")
         os.makedirs(output_folder)
-
-    # Create TrackHub directory
-    pm.info(f"Creating TrackHub directory for {args.bedset_name}")
-    hub_folder = os.path.join(output_folder, "bedsetHub")
-    if not os.path.exists(hub_folder):
-        os.makedirs(hub_folder)
-    # write hub.txt file
-    hub_txt = {
-        "hub": "BEDBASE_" + args.bedset_name,
-        "shortLabel": "BEDBASE_" + args.bedset_name,
-        "longLabel": args.bedset_name + " signal tracks",
-        "genomesFile": "genomes.txt",
-        "email": "bx2ur@virginia.edu",
-        "descriptionUrl": "http://www.bedbase.org/",
-    }
-    f = open(os.path.join(hub_folder, "hub.txt"), "w")
-    f.writelines("{}\t{}\n".format(k, v) for k, v in hub_txt.items())
-    f.close()
-    # write genomes.txt and trackDb.txt
-
-    for bedfiles in search_results:
-        genomes_txt = {
-            "genome": args.genome,
-            "trackDb": os.path.join(args.genome, "trackDb.txt"),
-        }
-        f = open(os.path.join(hub_folder, "genomes.txt"), "w")
-        f.writelines("{}\t{}\n".format(k, v) for k, v in genomes_txt.items())
-        f.close()
-
-        genome_folder = os.path.join(hub_folder, args.genome)
-        if not os.path.exists(genome_folder):
-            os.makedirs(genome_folder)
-
-        trackDb_txt = {
-            "track": bedfiles["name"],
-            "type": "bigBed",
-            "bigDataUrl": "http://data.bedbase.org/bigbed_files/"
-            + bedfiles["name"]
-            + ".bigBed",
-            "shortLabel": bedfiles["name"],
-            "longLabel": bedfiles["other"]["description"],
-            "visibility": "full",
-        }
-        mode = (
-            "a" if os.path.exists(os.path.join(genome_folder, "trackDb.txt")) else "w"
-        )
-
-        f = open(os.path.join(genome_folder, "trackDb.txt"), mode)
-        f.writelines("{}\t{}\n".format(k, v) for k, v in trackDb_txt.items())
-        f.writelines("\n")
-        f.close()
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
