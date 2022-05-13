@@ -268,8 +268,8 @@ def main():
     bedstats_df[numeric_results] = bedstats_df[numeric_results].apply(pd.to_numeric)
     # Calculate bedset statistics
     pm.info("Calculating bedset statistics")
-    bedfiles_means = bedstats_df.mean(axis=0)
-    bedfiles_stdv = bedstats_df.std(axis=0)
+    bedfiles_means = bedstats_df.mean(axis=0).round(4)
+    bedfiles_stdv = bedstats_df.std(axis=0).round(4)
     print(f"bedstats_df: {bedstats_df}")
     print(f"bedfiles_stdv: {bedfiles_stdv}")
     means_dictionary = dict(bedfiles_means)
@@ -430,10 +430,6 @@ def main():
                 "PEP including BED files in this BED set",
             ),
             "md5sum": bedset_digest,
-            "hubfile_path": mk_file_type(
-                os.path.join(hub_folder, "hub.txt"),
-                "hub.txt file for this BED set",
-            ),
             "genome": {
                 "alias": args.genome,
                 "digest": genome_digest,
