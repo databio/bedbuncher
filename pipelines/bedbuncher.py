@@ -5,7 +5,7 @@ bedset paths, statistics and PEP generating pipeline
 
 __author__ = ["Jose Verdezoto", "Michal Stolarczyk"]
 __email__ = "jev4xy@virginia.edu"
-__version__ = "0.0.2-dev"
+__version__ = "0.0.3-dev"
 
 import re
 import os
@@ -13,6 +13,7 @@ import sys
 import pandas as pd
 import json
 import tarfile
+import requests
 
 from argparse import ArgumentParser
 from bbconf.const import *
@@ -32,6 +33,7 @@ parser.add_argument(
     help="condition string to restrict bedfiles table select with",
     type=str,
 )
+parser.add_argument("-o", "--operator", help="query operator", type=str)
 parser.add_argument(
     "-v", "--query-val", help="condition values to populate condition with", type=str
 )
@@ -104,36 +106,90 @@ def get_bedset_digest(sr):
     return m.hexdigest()
 
 
-def mk_file_type(pth, title, md5sum):
+def mk_file_type(pth, title):
     """
     make file type object for the given file path and title
 
     :param pth: abs path of the file
     :param title: file title
-    :param md5sum: bedset digest
     :return: file type obj
     """
     rel_to = os.path.abspath(
         os.path.join(bbc.get_bedbuncher_output_path(), os.pardir, os.pardir)
     )
-    return {"path": os.path.relpath(pth, rel_to), "title": title}
+    return {
+        "path": os.path.relpath(pth, rel_to),
+        "size": get_file_size(pth),
+        "title": title,
+    }
+
+
+def convert_unit(size_in_bytes):
+    """Convert the size from bytes to other units like KB, MB or GB"""
+    if size_in_bytes < 1024:
+        return str(size_in_bytes) + "bytes"
+    elif size_in_bytes in range(1024, 1024 * 1024):
+        return str(round(size_in_bytes / 1024, 2)) + "KB"
+    elif size_in_bytes in range(1024 * 1024, 1024 * 1024 * 1024):
+        return str(round(size_in_bytes / (1024 * 1024))) + "MB"
+    elif size_in_bytes >= 1024 * 1024 * 1024:
+        return str(round(size_in_bytes / (1024 * 1024 * 1024))) + "GB"
+
+
+def get_file_size(file_name):
+    """Get file in size in given unit like KB, MB or GB"""
+    size = os.path.getsize(file_name)
+    return convert_unit(size)
 
 
 def main():
     pm = pypiper.PipelineManager(name="bedbuncher", outfolder=logs_dir, args=args)
-    # add genome to the query
-    query_val = [args.query_val]
-    query_val.append(args.genome)
-    query = args.query + " AND other->>'genome'=%s"
+
+    genome_digest = requests.get(
+        f"http://refgenomes.databio.org/genomes/genome_digest/{args.genome}"
+    ).text.strip('""')
+
+    # add genome to the query NEED FIX
+    # query_val = [args.query_val]
+    # query_val.append(genome_digest)
+    # query = args.query + f" AND genome->>'digest'=%s"
+
     # Use bbconf method to look for files in the database
-    search_results = bbc.bed.select(condition=query, condition_val=query_val)
-    print("query:", query)
-    print("query_val", query_val)
-    nhits = len(search_results)
+    keys = [k for k, v in bbc.bed.schema.items()]
+
+    print(args.operator.split(","), args.query_val.split(","))
+    query_val = {
+        args.operator.split(",")[i]: args.query_val.split(",")[i]
+        for i in range(len(args.operator.split(",")))
+    }
+    print("Resultant dictionary is : " + str(query_val))
+    if len(args.operator.split(",")) > 1:
+        search_results_ids = bbc.bed.select_txt(
+            columns=["id"], filter_templ=args.query, filter_params=query_val
+        )
+        search_results = bbc.bed.select_txt(
+            columns=keys, filter_templ=args.query, filter_params=query_val
+        )
+    else:
+        search_results_ids = bbc.bed.select(
+            columns=["id"],
+            filter_conditions=[(args.query, args.operator, args.query_val)],
+        )
+        search_results = bbc.bed.select(
+            columns=keys,
+            filter_conditions=[(args.query, args.operator, args.query_val)],
+        )
+
+    nhits = len(search_results_ids)
+    hit_ids = [list(x) for x in search_results_ids]
     if nhits < 2:
-        raise BedBaseConfError(f"{nhits} BED files match the query: {query}")
+        raise BedBaseConfError(
+            f"{nhits} BED files match the query: {args.query}, {args.operator}, {args.query_val}"
+        )
     pm.info(f"{nhits} BED files match the query")
-    hit_ids = [i["id"] for i in search_results]
+
+    search_results = list(map(lambda x: dict(zip(keys, x)), search_results))
+
     bedset_digest = get_bedset_digest(search_results)
     pm.info(f"bedset digest: {bedset_digest}")
 
@@ -144,57 +200,6 @@ def main():
     if not os.path.exists(output_folder):
         pm.info(f"Output directory does not exist. Creating: {output_folder}")
         os.makedirs(output_folder)
-
-    # Create TrackHub directory
-    pm.info(f"Creating TrackHub directory for {args.bedset_name}")
-    hub_folder = os.path.join(output_folder, "bedsetHub")
-    if not os.path.exists(hub_folder):
-        os.makedirs(hub_folder)
-    # write hub.txt file
-    hub_txt = {
-        "hub": "BEDBASE_" + args.bedset_name,
-        "shortLabel": "BEDBASE_" + args.bedset_name,
-        "longLabel": args.bedset_name + " signal tracks",
-        "genomesFile": "genomes.txt",
-        "email": "bx2ur@virginia.edu",
-        "descriptionUrl": "http://www.bedbase.org/",
-    }
-    f = open(os.path.join(hub_folder, "hub.txt"), "w")
-    f.writelines("{}\t{}\n".format(k, v) for k, v in hub_txt.items())
-    f.close()
-    # write genomes.txt and trackDb.txt
-
-    for bedfiles in search_results:
-        genomes_txt = {
-            "genome": args.genome,
-            "trackDb": os.path.join(args.genome, "trackDb.txt"),
-        }
-        f = open(os.path.join(hub_folder, "genomes.txt"), "w")
-        f.writelines("{}\t{}\n".format(k, v) for k, v in genomes_txt.items())
-        f.close()
-
-        genome_folder = os.path.join(hub_folder, args.genome)
-        if not os.path.exists(genome_folder):
-            os.makedirs(genome_folder)
-
-        trackDb_txt = {
-            "track": bedfiles["name"],
-            "type": "bigBed",
-            "bigDataUrl": "http://data.bedbase.org/bigbed_files/"
-            + bedfiles["name"]
-            + ".bigBed",
-            "shortLabel": bedfiles["name"],
-            "longLabel": bedfiles["other"]["description"],
-            "visibility": "full",
-        }
-        mode = (
-            "a" if os.path.exists(os.path.join(genome_folder, "trackDb.txt")) else "w"
-        )
-
-        f = open(os.path.join(genome_folder, "trackDb.txt"), mode)
-        f.writelines("{}\t{}\n".format(k, v) for k, v in trackDb_txt.items())
-        f.writelines("\n")
-        f.close()
 
     # PRODUCE OUTPUT BEDSET PEP
     # Create PEP annotation and config files and TAR them along the queried
@@ -263,8 +268,8 @@ def main():
     bedstats_df[numeric_results] = bedstats_df[numeric_results].apply(pd.to_numeric)
     # Calculate bedset statistics
     pm.info("Calculating bedset statistics")
-    bedfiles_means = bedstats_df.mean(axis=0)
-    bedfiles_stdv = bedstats_df.std(axis=0)
+    bedfiles_means = bedstats_df.mean(axis=0).round(4)
+    bedfiles_stdv = bedstats_df.std(axis=0).round(4)
     print(f"bedstats_df: {bedstats_df}")
     print(f"bedfiles_stdv: {bedfiles_stdv}")
     means_dictionary = dict(bedfiles_means)
@@ -293,7 +298,9 @@ def main():
     for files in search_results:
         bedfile_path = files["bedfile"]["path"]
         bedfile_target = (
-            os.readlink(bedfile_path) if os.path.islink(bedfile_path) else bedfile_path
+            os.readlink(bedfile_path)
+            if os.path.islink(bedfile_path)
+            else os.path.abspath(bedfile_path)
         )
         txt_file.write("{}\n".format(bedfile_target))
     txt_file.close()
@@ -406,33 +413,27 @@ def main():
             "bedset_tar_archive_path": mk_file_type(
                 tar_archive_file,
                 "TAR archive with BED files in this BED set",
-                bedset_digest,
             ),
             "bedset_bedfiles_gd_stats": mk_file_type(
                 bedfiles_stats_path,
                 "Statistics of the BED files in this BED set",
-                bedset_digest,
             ),
             "bedset_gd_stats": mk_file_type(
                 bedset_stats_path,
                 "Means and standard deviations of the BED files in this BED set",
-                bedset_digest,
             ),
             "bedset_igd_database_path": mk_file_type(
-                igd_tar_archive_path, "iGD database", bedset_digest
+                igd_tar_archive_path, "iGD database"
             ),
             "bedset_pep": mk_file_type(
                 pep_tar_archive_path,
                 "PEP including BED files in this BED set",
-                bedset_digest,
             ),
             "md5sum": bedset_digest,
-            "hubfile_path": mk_file_type(
-                os.path.join(hub_folder, "hub.txt"),
-                "hub.txt file for this BED set",
-                bedset_digest,
-            ),
-            "genome": args.genome,
+            "genome": {
+                "alias": args.genome,
+                "digest": genome_digest,
+            },
         },
     )
 
@@ -445,6 +446,7 @@ def main():
     bedset_id = bbc.bedset.report(
         record_identifier=bedset_digest, values=data, return_id=True
     )
+    print("bedset_id:", bedset_id)
     for hit_id in hit_ids:
         bbc.report_relationship(bedset_id=bedset_id, bedfile_id=hit_id)
     pm.stop_pipeline()

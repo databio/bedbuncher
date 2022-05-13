@@ -138,7 +138,7 @@ doItAll <- function(opt) {
     bedlist = read.table(file=opt$bedfilelist, stringsAsFactors=FALSE)
     grl = GRangesList()
     for(i in seq_len(NROW(bedlist))){
-        bed_path = paste0(opt$outputfolder, "/../../../", bedlist[i, 1])
+        bed_path = bedlist[i, 1]
         if(!file.exists(bed_path)) stop("File not found: ", bed_path)
         message("reading BED: ", bed_path)
         grl[[i]] = LOLA::readBed(bed_path)
