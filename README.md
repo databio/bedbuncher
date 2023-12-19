@@ -1,3 +1,5 @@
+**Archived. This functionality was moved to `bedboss` in 2023. Please see https://github.com/databio/bedbase for more information**
+
 # bedbuncher
 Pipeline designed to create **bedsets** (sets of BED files) that will be retrieved from bedbase.
 
